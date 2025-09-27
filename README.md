@@ -151,14 +151,16 @@ erDiagram
         float costo_unitario_compra
     }
 
-    PRODUCTO ||--|{ CATEGORIA : "pertenece a"
-    VENTA ||--o{ CLIENTE : "asociada a"
-    VENTA ||--|{ USUARIO : "registrada por"
-    VENTA }|o--o| VENTA_DETALLE : "contiene"
-    PRODUCTO }|o--o| VENTA_DETALLE : "detallado en"
-    PEDIDO_PROVEEDOR ||--|{ PROVEEDOR : "realizado a"
-    PEDIDO_PROVEEDOR }|o--o| PEDIDO_DETALLE : "contiene"
-    PRODUCTO }|o--o| PEDIDO_DETALLE : "detallado en"
+    CATEGORIA ||--|{ PRODUCTO : "contiene"
+    CLIENTE ||--o{ VENTA : "realiza"
+    USUARIO ||--|{ VENTA : "registra"
+    PROVEEDOR ||--|{ PEDIDO_PROVEEDOR : "recibe"
+    
+    VENTA ||--|{ VENTA_DETALLE : "contiene"
+    PRODUCTO ||--o{ VENTA_DETALLE : "es parte de"
+
+    PEDIDO_PROVEEDOR ||--|{ PEDIDO_DETALLE : "contiene"
+    PRODUCTO ||--o{ PEDIDO_DETALLE : "es parte de"
 
 ```
 
