@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+
+{% block title %}Venta #{{ venta.id }} - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-receipt me-2"></i>Venta #{{ venta.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-outline-primary" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Imprimir
+            </button>
+        </div>
+        <a href="{% url 'venta_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver a ventas
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Información de la venta -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Información de la Venta</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Fecha:</strong><br>
+                    <span class="text-muted">{{ venta.fecha|date:"d/m/Y H:i" }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Cliente:</strong><br>
+                    {% if venta.cliente %}
+                        <i class="fas fa-user me-1"></i>{{ venta.cliente.nombre }}
+                        {% if venta.cliente.telefono %}
+                            <br><small class="text-muted"><i class="fas fa-phone me-1"></i>{{ venta.cliente.telefono }}</small>
+                        {% endif %}
+                        {% if venta.cliente.email %}
+                            <br><small class="text-muted"><i class="fas fa-envelope me-1"></i>{{ venta.cliente.email }}</small>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted">Cliente General</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Estado:</strong><br>
+                    {% if venta.estado == 'COMPLETADA' %}
+                        <span class="badge bg-success fs-6">{{ venta.get_estado_display }}</span>
+                    {% elif venta.estado == 'PENDIENTE_PAGO' %}
+                        <span class="badge bg-warning fs-6">{{ venta.get_estado_display }}</span>
+                    {% elif venta.estado == 'CANCELADA' %}
+                        <span class="badge bg-danger fs-6">{{ venta.get_estado_display }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary fs-6">{{ venta.get_estado_display }}</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Vendedor:</strong><br>
+                    <span class="text-muted">{{ venta.usuario.username }}</span>
+                </div>
+                
+                <div class="border-top pt-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Subtotal:</span>
+                        <span>${{ venta.monto_total|floatformat:2 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>IVA (16%):</span>
+                        <span>Incluido</span>
+                    </div>
+                    <div class="d-flex justify-content-between border-top pt-2">
+                        <strong>Total:</strong>
+                        <strong class="text-success">${{ venta.monto_total|floatformat:2 }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detalle de productos -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Productos Vendidos</h6>
+            </div>
+            <div class="card-body">
+                {% if detalles %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                                <th class="text-center">Cantidad</th>
+                                <th class="text-end">Precio Unit.</th>
+                                <th class="text-end">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detalle in detalles %}
+                            <tr>
+                                <td>
+                                    <strong>{{ detalle.producto.nombre }}</strong>
+                                    {% if detalle.producto.descripcion %}
+                                        <br><small class="text-muted">{{ detalle.producto.descripcion|truncatechars:50 }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <code>{{ detalle.producto.sku }}</code>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-info">{{ detalle.cantidad }}</span>
+                                </td>
+                                <td class="text-end">
+                                    ${{ detalle.precio_unitario_venta|floatformat:2 }}
+                                </td>
+                                <td class="text-end">
+                                    <strong>${{ detalle.subtotal|floatformat:2 }}</strong>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-light">
+                                <th colspan="4" class="text-end">Total:</th>
+                                <th class="text-end text-success">${{ venta.monto_total|floatformat:2 }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-box-open fa-2x text-muted mb-2"></i>
+                    <p class="text-muted">No hay productos en esta venta</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Acciones adicionales -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Acciones</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="window.print()">
+                            <i class="fas fa-print me-2"></i>Imprimir Factura
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="{% url 'nueva_venta' %}" class="btn btn-outline-success w-100">
+                            <i class="fas fa-plus me-2"></i>Nueva Venta
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estilos para impresión -->
+<style media="print">
+    .btn, .btn-toolbar, .card-header, .sidebar, nav {
+        display: none !important;
+    }
+    
+    .main-content {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    .card-body {
+        padding: 0 !important;
+    }
+    
+    @page {
+        margin: 1cm;
+    }
+    
+    body {
+        font-size: 12px;
+    }
+    
+    .h2 {
+        font-size: 18px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}

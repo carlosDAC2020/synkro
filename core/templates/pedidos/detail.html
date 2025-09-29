@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Pedido #{{ pedido.id }} - Synkro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-clipboard-list me-3"></i>Pedido #{{ pedido.id }}
+            </h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'pedido_list' %}">Pedidos</a></li>
+                    <li class="breadcrumb-item active">Pedido #{{ pedido.id }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="d-flex gap-2">
+            {% if pedido.estado == 'PENDIENTE' %}
+                <form method="post" action="{% url 'pedido_cambiar_estado' pedido.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="estado" value="RECIBIDO">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check me-2"></i>Marcar como Recibido
+                    </button>
+                </form>
+            {% endif %}
+            <a href="{% url 'pedido_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Información del pedido -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Información del Pedido
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong><i class="fas fa-truck me-2"></i>Proveedor:</strong></p>
+                        <div class="ms-4">
+                            <h6>{{ pedido.proveedor.nombre }}</h6>
+                            {% if pedido.proveedor.contacto %}
+                                <p class="mb-1"><i class="fas fa-user me-2"></i>{{ pedido.proveedor.contacto }}</p>
+                            {% endif %}
+                            {% if pedido.proveedor.telefono %}
+                                <p class="mb-1"><i class="fas fa-phone me-2"></i>{{ pedido.proveedor.telefono }}</p>
+                            {% endif %}
+                            {% if pedido.proveedor.email %}
+                                <p class="mb-0"><i class="fas fa-envelope me-2"></i>{{ pedido.proveedor.email }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong><i class="fas fa-calendar me-2"></i>Fecha:</strong> {{ pedido.fecha_pedido|date:"d/m/Y H:i" }}</p>
+                        <p><strong><i class="fas fa-info me-2"></i>Estado:</strong> 
+                            {% if pedido.estado == 'PENDIENTE' %}
+                                <span class="badge bg-warning">{{ pedido.get_estado_display }}</span>
+                            {% elif pedido.estado == 'RECIBIDO' %}
+                                <span class="badge bg-success">{{ pedido.get_estado_display }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">{{ pedido.get_estado_display }}</span>
+                            {% endif %}
+                        </p>
+                        <p><strong><i class="fas fa-dollar-sign me-2"></i>Total:</strong> <span class="h5 text-primary">${{ pedido.costo_total|floatformat:2|intcomma }}</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Productos pedidos -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-box me-2"></i>Productos Pedidos
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                                <th class="text-center">Cantidad</th>
+                                <th class="text-end">Costo Unit.</th>
+                                <th class="text-end">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detalle in detalles %}
+                            <tr>
+                                <td>
+                                    <strong>{{ detalle.producto.nombre }}</strong>
+                                    {% if detalle.producto.descripcion %}
+                                        <br><small class="text-muted">{{ detalle.producto.descripcion|truncatechars:50 }}</small>
+                                    {% endif %}
+                                </td>
+                                <td><code>{{ detalle.producto.sku }}</code></td>
+                                <td class="text-center">{{ detalle.cantidad }}</td>
+                                <td class="text-end">${{ detalle.costo_unitario_compra|floatformat:2|intcomma }}</td>
+                                <td class="text-end">
+                                    <strong>${{ detalle.subtotal|floatformat:2|intcomma }}</strong>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="4" class="text-end">Total:</th>
+                                <th class="text-end">${{ pedido.costo_total|floatformat:2|intcomma }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- Acciones -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-cogs me-2"></i>Acciones
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if pedido.estado == 'PENDIENTE' %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Pedido Pendiente</strong><br>
+                        Este pedido está esperando ser recibido.
+                    </div>
+                    
+                    <form method="post" action="{% url 'pedido_cambiar_estado' pedido.pk %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Cambiar Estado:</label>
+                            <select name="estado" class="form-select">
+                                <option value="PENDIENTE" {% if pedido.estado == 'PENDIENTE' %}selected{% endif %}>Pendiente</option>
+                                <option value="RECIBIDO">Recibido</option>
+                                <option value="CANCELADO">Cancelado</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-save me-2"></i>Actualizar Estado
+                        </button>
+                    </form>
+                    
+                {% elif pedido.estado == 'RECIBIDO' %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Pedido Recibido</strong><br>
+                        El stock de los productos ha sido actualizado automáticamente.
+                    </div>
+                    
+                {% else %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <strong>Pedido Cancelado</strong><br>
+                        Este pedido ha sido cancelado.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Información adicional -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>Resumen
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Productos diferentes:</span>
+                    <span><strong>{{ detalles|length }}</strong></span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Cantidad total:</span>
+                    <span><strong>{{ detalles|length }}</strong></span>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <span>Costo total:</span>
+                    <span class="h6 text-primary">${{ pedido.costo_total|floatformat:2|intcomma }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

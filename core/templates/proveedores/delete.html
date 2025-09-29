@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Proveedor - Synkro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-trash me-3"></i>Eliminar Proveedor
+    </h1>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'proveedor_list' %}">Proveedores</a></li>
+            <li class="breadcrumb-item active">Eliminar</li>
+        </ol>
+    </nav>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Eliminación
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-warning me-2"></i>
+                    <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                </div>
+                
+                <p class="mb-3">¿Estás seguro de que deseas eliminar el siguiente proveedor?</p>
+                
+                <div class="bg-light p-3 rounded mb-4">
+                    <h6><strong>{{ proveedor.nombre }}</strong></h6>
+                    {% if proveedor.contacto %}
+                        <p class="mb-1"><i class="fas fa-user me-2"></i>{{ proveedor.contacto }}</p>
+                    {% endif %}
+                    {% if proveedor.telefono %}
+                        <p class="mb-1"><i class="fas fa-phone me-2"></i>{{ proveedor.telefono }}</p>
+                    {% endif %}
+                    {% if proveedor.email %}
+                        <p class="mb-0"><i class="fas fa-envelope me-2"></i>{{ proveedor.email }}</p>
+                    {% endif %}
+                </div>
+                
+                <form method="post" class="d-flex justify-content-between">
+                    {% csrf_token %}
+                    <a href="{% url 'proveedor_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i>Eliminar Definitivamente
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

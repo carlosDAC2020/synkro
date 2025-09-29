@@ -1,0 +1,340 @@
+{% extends 'base.html' %}
+
+{% block title %}Nueva Venta - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-plus-circle me-2"></i>Nueva Venta</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'venta_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver a ventas
+        </a>
+    </div>
+</div>
+
+<form method="post" id="venta-form">
+    {% csrf_token %}
+    
+    <div class="row">
+        <!-- Información de la venta -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Información de la Venta</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="{{ venta_form.cliente.id_for_label }}" class="form-label">
+                            <i class="fas fa-user me-2"></i>Cliente
+                        </label>
+                        {{ venta_form.cliente }}
+                        <small class="form-text text-muted">Opcional - Dejar vacío para cliente general</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ venta_form.estado.id_for_label }}" class="form-label">
+                            <i class="fas fa-flag me-2"></i>Estado
+                        </label>
+                        {{ venta_form.estado }}
+                    </div>
+                    
+                    <!-- Resumen de totales -->
+                    <div class="border-top pt-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Subtotal:</span>
+                            <span id="subtotal">$0.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>IVA (16%):</span>
+                            <span id="iva">$0.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between border-top pt-2">
+                            <strong>Total:</strong>
+                            <strong id="total">$0.00</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Productos -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Productos</h6>
+                </div>
+                <div class="card-body">
+                    {{ formset.management_form }}
+                    
+                    <div id="formset-container">
+                        {% for form in formset %}
+                        <div class="formset-form border rounded p-3 mb-3">
+                            {% if form.non_field_errors %}
+                                <div class="alert alert-danger">
+                                    {{ form.non_field_errors }}
+                                </div>
+                            {% endif %}
+                            
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <label class="form-label">Producto</label>
+                                    {{ form.producto }}
+                                    {% if form.producto.errors %}
+                                        <div class="text-danger small">{{ form.producto.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Cantidad</label>
+                                    {{ form.cantidad }}
+                                    {% if form.cantidad.errors %}
+                                        <div class="text-danger small">{{ form.cantidad.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Precio Unit.</label>
+                                    {{ form.precio_unitario_venta }}
+                                    {% if form.precio_unitario_venta.errors %}
+                                        <div class="text-danger small">{{ form.precio_unitario_venta.errors.0 }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    {% if not forloop.first %}
+                                    <button type="button" class="btn btn-danger btn-sm remove-form">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                    {{ form.DELETE }}
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-2">
+                                <div class="col-md-12">
+                                    <small class="text-muted">Stock disponible: <span class="stock-info">-</span></small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="button" id="add-form" class="btn btn-outline-primary">
+                        <i class="fas fa-plus me-2"></i>Agregar Producto
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Botones de acción -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-success btn-lg">
+                    <i class="fas fa-check me-2"></i>Crear Venta
+                </button>
+                <a href="{% url 'venta_list' %}" class="btn btn-secondary">
+                    <i class="fas fa-times me-2"></i>Cancelar
+                </a>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let formCount = parseInt('{{ formset.total_form_count }}');
+    const maxForms = parseInt('{{ formset.max_num }}');
+    let productStocks = {}; // Cache para stocks de productos
+    
+    // Función para validar stock
+    function validateStock(formRow) {
+        const cantidadInput = formRow.querySelector('input[name$="-cantidad"]');
+        const productSelect = formRow.querySelector('select[name$="-producto"]');
+        const stockInfo = formRow.querySelector('.stock-info');
+        const submitBtn = document.querySelector('button[type="submit"]');
+        
+        if (!cantidadInput || !productSelect) return true;
+        
+        const productId = productSelect.value;
+        const cantidad = parseInt(cantidadInput.value) || 0;
+        
+        if (productId && cantidad > 0) {
+            const stockDisponible = productStocks[productId] || 0;
+            
+            if (cantidad > stockDisponible) {
+                cantidadInput.classList.add('is-invalid');
+                stockInfo.innerHTML = `<span class="text-danger">Stock insuficiente! Disponible: ${stockDisponible}</span>`;
+                
+                // Mostrar alerta
+                if (!document.querySelector('.stock-alert')) {
+                    const alert = document.createElement('div');
+                    alert.className = 'alert alert-danger stock-alert';
+                    alert.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Hay productos con stock insuficiente. Revise las cantidades.';
+                    document.querySelector('.card-body').insertBefore(alert, document.querySelector('.card-body').firstChild);
+                }
+                
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-ban me-2"></i>Stock Insuficiente';
+                return false;
+            } else {
+                cantidadInput.classList.remove('is-invalid');
+                stockInfo.innerHTML = `<span class="text-success">${stockDisponible} unidades disponibles</span>`;
+            }
+        }
+        
+        // Verificar si todos los productos tienen stock suficiente
+        let allValid = true;
+        document.querySelectorAll('.formset-form').forEach(form => {
+            const cantInput = form.querySelector('input[name$="-cantidad"]');
+            if (cantInput && cantInput.classList.contains('is-invalid')) {
+                allValid = false;
+            }
+        });
+        
+        if (allValid) {
+            document.querySelector('.stock-alert')?.remove();
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Crear Venta';
+        }
+        
+        return allValid;
+    }
+    
+    // Función para actualizar precios cuando se selecciona un producto
+    function updateProductPrice(selectElement) {
+        const productId = selectElement.value;
+        const formRow = selectElement.closest('.formset-form');
+        const precioInput = formRow.querySelector('input[name$="-precio_unitario_venta"]');
+        const stockInfo = formRow.querySelector('.stock-info');
+        
+        if (productId) {
+            fetch(`/api/producto/${productId}/precio/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.precio) {
+                        precioInput.value = data.precio.toFixed(2);
+                        productStocks[productId] = data.stock;
+                        stockInfo.innerHTML = `<span class="text-info">${data.stock} unidades disponibles</span>`;
+                        updateTotals();
+                        validateStock(formRow);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    stockInfo.innerHTML = '<span class="text-danger">Error al cargar</span>';
+                });
+        } else {
+            precioInput.value = '';
+            stockInfo.innerHTML = '<span class="text-muted">-</span>';
+            updateTotals();
+        }
+    }
+    
+    // Función para calcular totales
+    function updateTotals() {
+        let subtotal = 0;
+        
+        document.querySelectorAll('.formset-form').forEach(form => {
+            const cantidad = parseFloat(form.querySelector('input[name$="-cantidad"]').value) || 0;
+            const precio = parseFloat(form.querySelector('input[name$="-precio_unitario_venta"]').value) || 0;
+            subtotal += cantidad * precio;
+        });
+        
+        const iva = subtotal * 0.16;
+        const total = subtotal + iva;
+        
+        document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
+        document.getElementById('iva').textContent = `$${iva.toFixed(2)}`;
+        document.getElementById('total').textContent = `$${total.toFixed(2)}`;
+    }
+    
+    // Event listeners para productos existentes
+    document.querySelectorAll('select[name$="-producto"]').forEach(select => {
+        select.addEventListener('change', function() {
+            updateProductPrice(this);
+        });
+    });
+    
+    // Event listeners para cantidades y precios
+    document.querySelectorAll('input[name$="-cantidad"]').forEach(input => {
+        input.addEventListener('input', function() {
+            const formRow = this.closest('.formset-form');
+            validateStock(formRow);
+            updateTotals();
+        });
+    });
+    
+    document.querySelectorAll('input[name$="-precio_unitario_venta"]').forEach(input => {
+        input.addEventListener('input', updateTotals);
+    });
+    
+    // Agregar nuevo formulario
+    document.getElementById('add-form').addEventListener('click', function() {
+        if (formCount < maxForms) {
+            const container = document.getElementById('formset-container');
+            const emptyForm = document.querySelector('.formset-form').cloneNode(true);
+            
+            // Actualizar índices del formulario
+            emptyForm.innerHTML = emptyForm.innerHTML.replace(/__prefix__/g, formCount);
+            emptyForm.innerHTML = emptyForm.innerHTML.replace(/form-0/g, `form-${formCount}`);
+            
+            // Limpiar valores
+            emptyForm.querySelectorAll('input, select').forEach(input => {
+                if (input.type !== 'hidden') {
+                    input.value = '';
+                }
+            });
+            
+            // Agregar botón de eliminar
+            const deleteBtn = emptyForm.querySelector('.remove-form');
+            if (deleteBtn) {
+                deleteBtn.style.display = 'block';
+            }
+            
+            container.appendChild(emptyForm);
+            
+            // Agregar event listeners al nuevo formulario
+            const newSelect = emptyForm.querySelector('select[name$="-producto"]');
+            newSelect.addEventListener('change', function() {
+                updateProductPrice(this);
+            });
+            
+            const newCantidadInput = emptyForm.querySelector('input[name$="-cantidad"]');
+            newCantidadInput.addEventListener('input', function() {
+                const formRow = this.closest('.formset-form');
+                validateStock(formRow);
+                updateTotals();
+            });
+            
+            const newPrecioInput = emptyForm.querySelector('input[name$="-precio_unitario_venta"]');
+            newPrecioInput.addEventListener('input', updateTotals);
+            
+            formCount++;
+            document.querySelector('input[name="form-TOTAL_FORMS"]').value = formCount;
+        }
+    });
+    
+    // Eliminar formulario
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-form') || e.target.closest('.remove-form')) {
+            e.preventDefault();
+            const form = e.target.closest('.formset-form');
+            const deleteInput = form.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.checked = true;
+                form.style.display = 'none';
+            } else {
+                form.remove();
+                formCount--;
+                document.querySelector('input[name="form-TOTAL_FORMS"]').value = formCount;
+            }
+            updateTotals();
+        }
+    });
+    
+    // Calcular totales iniciales
+    updateTotals();
+});
+</script>
+{% endblock %}

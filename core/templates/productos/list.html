@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block title %}Productos - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-box me-2"></i>Gestión de Productos</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'producto_add' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Nuevo Producto
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <form method="get" class="d-flex">
+            <input type="text" name="search" class="form-control me-2" 
+                   placeholder="Buscar por nombre, SKU o descripción..." 
+                   value="{{ search }}">
+            <select name="categoria" class="form-select me-2" style="max-width: 200px;">
+                <option value="">Todas las categorías</option>
+                {% for categoria in categorias %}
+                <option value="{{ categoria.id }}" {% if categoria.id|stringformat:"s" == categoria_selected %}selected{% endif %}>
+                    {{ categoria.nombre }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-outline-secondary">
+                <i class="fas fa-search"></i>
+            </button>
+            {% if search or categoria_selected %}
+            <a href="{% url 'producto_list' %}" class="btn btn-outline-danger ms-2">
+                <i class="fas fa-times"></i>
+            </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Lista de productos -->
+<div class="card">
+    <div class="card-body">
+        {% if productos %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>SKU</th>
+                        <th>Nombre</th>
+                        <th>Categoría</th>
+                        <th>Stock</th>
+                        <th>Precio</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for producto in productos %}
+                    <tr {% if producto.necesita_reposicion %}class="table-warning"{% endif %}>
+                        <td>
+                            <code>{{ producto.sku }}</code>
+                        </td>
+                        <td>
+                            <strong>{{ producto.nombre }}</strong>
+                            {% if producto.descripcion %}
+                                <br><small class="text-muted">{{ producto.descripcion|truncatechars:50 }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if producto.categoria %}
+                                <span class="badge bg-secondary">{{ producto.categoria.nombre }}</span>
+                            {% else %}
+                                <span class="text-muted">Sin categoría</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if producto.stock_actual <= producto.stock_minimo %}bg-danger{% elif producto.stock_actual <= 10 %}bg-warning{% else %}bg-success{% endif %}">
+                                {{ producto.stock_actual }}
+                            </span>
+                            <small class="text-muted d-block">Min: {{ producto.stock_minimo }}</small>
+                        </td>
+                        <td>
+                            <strong>${{ producto.precio_venta }}</strong>
+                        </td>
+                        <td>
+                            {% if producto.necesita_reposicion %}
+                                <span class="badge bg-warning">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>Stock Bajo
+                                </span>
+                            {% elif producto.stock_actual == 0 %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times me-1"></i>Sin Stock
+                                </span>
+                            {% else %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>Disponible
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'producto_edit' producto.id %}" 
+                                   class="btn btn-sm btn-outline-primary" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'producto_delete' producto.id %}" 
+                                   class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-box fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No hay productos registrados</h5>
+            {% if search or categoria_selected %}
+            <p class="text-muted">No se encontraron resultados con los filtros aplicados</p>
+            <a href="{% url 'producto_list' %}" class="btn btn-secondary">Ver todos los productos</a>
+            {% else %}
+            <p class="text-muted">Comienza agregando tu primer producto</p>
+            <a href="{% url 'producto_add' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Agregar Producto
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if productos %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Leyenda:</strong> 
+            Las filas con fondo amarillo indican productos con stock bajo que necesitan reposición.
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

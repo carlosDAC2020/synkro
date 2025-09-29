@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+
+{% block title %}Ventas - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-shopping-cart me-2"></i>Gestión de Ventas</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'nueva_venta' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Nueva Venta
+        </a>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <form method="get" class="d-flex">
+            <input type="text" name="search" class="form-control me-2" 
+                   placeholder="Buscar por cliente o número de venta..." 
+                   value="{{ search }}">
+            <select name="estado" class="form-select me-2" style="max-width: 200px;">
+                <option value="">Todos los estados</option>
+                {% for estado_key, estado_label in estados %}
+                <option value="{{ estado_key }}" {% if estado_key == estado_selected %}selected{% endif %}>
+                    {{ estado_label }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-outline-secondary">
+                <i class="fas fa-search"></i>
+            </button>
+            {% if search or estado_selected %}
+            <a href="{% url 'venta_list' %}" class="btn btn-outline-danger ms-2">
+                <i class="fas fa-times"></i>
+            </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Lista de ventas -->
+<div class="card">
+    <div class="card-body">
+        {% if ventas %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Cliente</th>
+                        <th>Fecha</th>
+                        <th>Productos</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th>Vendedor</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for venta in ventas %}
+                    <tr>
+                        <td>
+                            <strong>#{{ venta.id }}</strong>
+                        </td>
+                        <td>
+                            {% if venta.cliente %}
+                                <i class="fas fa-user me-1"></i>{{ venta.cliente.nombre }}
+                            {% else %}
+                                <span class="text-muted">Cliente General</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ venta.fecha|date:"d/m/Y" }}</small><br>
+                            <small class="text-muted">{{ venta.fecha|date:"H:i" }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ venta.detalles.count }} item{{ venta.detalles.count|pluralize }}</span>
+                        </td>
+                        <td>
+                            <strong>${{ venta.monto_total }}</strong>
+                        </td>
+                        <td>
+                            {% if venta.estado == 'COMPLETADA' %}
+                                <span class="badge bg-success">{{ venta.get_estado_display }}</span>
+                            {% elif venta.estado == 'PENDIENTE_PAGO' %}
+                                <span class="badge bg-warning">{{ venta.get_estado_display }}</span>
+                            {% elif venta.estado == 'CANCELADA' %}
+                                <span class="badge bg-danger">{{ venta.get_estado_display }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ venta.get_estado_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ venta.usuario.username }}</small>
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'venta_detail' venta.id %}" 
+                                   class="btn btn-sm btn-outline-primary" title="Ver Detalle">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Resumen -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="alert alert-info">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <strong>Total Ventas:</strong> {{ ventas.count }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Monto Total:</strong> ${% widthratio ventas 1 1 as total_monto %}{{ total_monto|default:"0" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Completadas:</strong> {{ ventas|length }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Promedio:</strong> ${% if ventas %}{% widthratio total_monto ventas.count 1 %}{% else %}0{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No hay ventas registradas</h5>
+            {% if search or estado_selected %}
+            <p class="text-muted">No se encontraron resultados con los filtros aplicados</p>
+            <a href="{% url 'venta_list' %}" class="btn btn-secondary">Ver todas las ventas</a>
+            {% else %}
+            <p class="text-muted">Comienza registrando tu primera venta</p>
+            <a href="{% url 'nueva_venta' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Nueva Venta
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

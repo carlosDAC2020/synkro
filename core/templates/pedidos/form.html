@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Synkro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-clipboard-list me-3"></i>{{ title }}
+    </h1>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'pedido_list' %}">Pedidos</a></li>
+            <li class="breadcrumb-item active">{{ title }}</li>
+        </ol>
+    </nav>
+</div>
+
+<form method="post" id="pedido-form">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Información del pedido -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Información del Pedido
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="{{ pedido_form.proveedor.id_for_label }}" class="form-label">
+                                <i class="fas fa-truck me-1"></i>Proveedor *
+                            </label>
+                            {{ pedido_form.proveedor }}
+                            {% if pedido_form.proveedor.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ pedido_form.proveedor.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Productos del pedido -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-box me-2"></i>Productos
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="formset-container">
+                        {% for form in formset %}
+                            <div class="formset-form border rounded p-3 mb-3">
+                                {{ form.id }}
+                                {% if form.DELETE %}
+                                    {{ form.DELETE }}
+                                {% endif %}
+                                
+                                <div class="row">
+                                    <div class="col-md-5">
+                                        <label class="form-label">Producto *</label>
+                                        {{ form.producto }}
+                                        {% if form.producto.errors %}
+                                            <div class="text-danger small">{{ form.producto.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Cantidad *</label>
+                                        {{ form.cantidad }}
+                                        {% if form.cantidad.errors %}
+                                            <div class="text-danger small">{{ form.cantidad.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Costo Unitario *</label>
+                                        {{ form.costo_unitario_compra }}
+                                        {% if form.costo_unitario_compra.errors %}
+                                            <div class="text-danger small">{{ form.costo_unitario_compra.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-1 d-flex align-items-end">
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-form" 
+                                                {% if forloop.first and formset|length == 1 %}style="display: none;"{% endif %}>
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="button" id="add-form" class="btn btn-outline-primary">
+                        <i class="fas fa-plus me-2"></i>Agregar Producto
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <!-- Resumen del pedido -->
+            <div class="card sticky-top">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-calculator me-2"></i>Resumen
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Subtotal:</span>
+                        <span id="subtotal">$0.00</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>IVA (16%):</span>
+                        <span id="iva">$0.00</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <strong>Total:</strong>
+                        <strong id="total">$0.00</strong>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Crear Pedido
+                        </button>
+                        <a href="{% url 'pedido_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Cancelar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let formCount = parseInt('{{ formset.total_form_count }}');
+    const maxForms = parseInt('{{ formset.max_num }}');
+    
+    // Función para calcular totales
+    function updateTotals() {
+        let subtotal = 0;
+        
+        document.querySelectorAll('.formset-form').forEach(form => {
+            const cantidad = parseFloat(form.querySelector('input[name$="-cantidad"]').value) || 0;
+            const costo = parseFloat(form.querySelector('input[name$="-costo_unitario_compra"]').value) || 0;
+            subtotal += cantidad * costo;
+        });
+        
+        const iva = subtotal * 0.16;
+        const total = subtotal + iva;
+        
+        document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
+        document.getElementById('iva').textContent = `$${iva.toFixed(2)}`;
+        document.getElementById('total').textContent = `$${total.toFixed(2)}`;
+    }
+    
+    // Event listeners para cantidades y costos
+    document.querySelectorAll('input[name$="-cantidad"], input[name$="-costo_unitario_compra"]').forEach(input => {
+        input.addEventListener('input', updateTotals);
+    });
+    
+    // Agregar nuevo formulario
+    document.getElementById('add-form').addEventListener('click', function() {
+        if (formCount < maxForms) {
+            const container = document.getElementById('formset-container');
+            const emptyForm = document.querySelector('.formset-form').cloneNode(true);
+            
+            // Actualizar índices del formulario
+            emptyForm.innerHTML = emptyForm.innerHTML.replace(/__prefix__/g, formCount);
+            emptyForm.innerHTML = emptyForm.innerHTML.replace(/form-0/g, `form-${formCount}`);
+            
+            // Limpiar valores
+            emptyForm.querySelectorAll('input, select').forEach(input => {
+                if (input.type !== 'hidden') {
+                    input.value = '';
+                }
+            });
+            
+            // Mostrar botón de eliminar
+            const deleteBtn = emptyForm.querySelector('.remove-form');
+            if (deleteBtn) {
+                deleteBtn.style.display = 'block';
+            }
+            
+            container.appendChild(emptyForm);
+            
+            // Agregar event listeners al nuevo formulario
+            const newCantidadInput = emptyForm.querySelector('input[name$="-cantidad"]');
+            const newCostoInput = emptyForm.querySelector('input[name$="-costo_unitario_compra"]');
+            
+            newCantidadInput.addEventListener('input', updateTotals);
+            newCostoInput.addEventListener('input', updateTotals);
+            
+            formCount++;
+            document.querySelector('input[name="form-TOTAL_FORMS"]').value = formCount;
+        }
+    });
+    
+    // Eliminar formulario
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-form') || e.target.closest('.remove-form')) {
+            e.preventDefault();
+            const form = e.target.closest('.formset-form');
+            const deleteInput = form.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.checked = true;
+                form.style.display = 'none';
+            } else {
+                form.remove();
+                formCount--;
+                document.querySelector('input[name="form-TOTAL_FORMS"]').value = formCount;
+            }
+            updateTotals();
+        }
+    });
+    
+    // Calcular totales iniciales
+    updateTotals();
+});
+</script>
+{% endblock %}

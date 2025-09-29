@@ -1,0 +1,367 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Dashboard - Synkro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-tachometer-alt me-3"></i>Dashboard
+    </h1>
+    <p class="page-subtitle">Resumen general del sistema</p>
+</div>
+
+<!-- Primera fila - Métricas de ventas y ganancias -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stats-card">
+            <div class="stats-number text-success">${{ ventas_mes_total|floatformat:0|intcomma }}</div>
+            <div class="stats-label">
+                <i class="fas fa-dollar-sign me-2"></i>Ventas del Mes
+            </div>
+            <small class="text-muted">{{ ventas_mes_count }} transacciones</small>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stats-card">
+            <div class="stats-number text-primary">${{ ganancias_mes|floatformat:0|intcomma }}</div>
+            <div class="stats-label">
+                <i class="fas fa-chart-line me-2"></i>Ganancias del Mes
+            </div>
+            <small class="text-muted">Estimado</small>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stats-card">
+            <div class="stats-number">${{ ventas_hoy_total|floatformat:0|intcomma }}</div>
+            <div class="stats-label">
+                <i class="fas fa-calendar-day me-2"></i>Ventas Hoy
+            </div>
+            <small class="text-muted">{{ ventas_hoy_count }} ventas</small>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stats-card">
+            <div class="stats-number">${{ ticket_promedio|floatformat:0|intcomma }}</div>
+            <div class="stats-label">
+                <i class="fas fa-receipt me-2"></i>Ticket Promedio
+            </div>
+            <small class="text-muted">Este mes</small>
+        </div>
+    </div>
+</div>
+
+<!-- Segunda fila - Inventario y operaciones -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stats-card">
+            <div class="stats-number">{{ total_productos }}</div>
+            <div class="stats-label">
+                <i class="fas fa-box me-2"></i>Total Productos
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stats-card">
+            <div class="stats-number text-warning">{{ productos_stock_bajo }}</div>
+            <div class="stats-label">
+                <i class="fas fa-exclamation-triangle me-2"></i>Stock Bajo
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stats-card">
+            <div class="stats-number text-info">{{ pedidos_pendientes }}</div>
+            <div class="stats-label">
+                <i class="fas fa-clock me-2"></i>Pedidos Pendientes
+            </div>
+            <small class="text-muted">${{ inversion_pendiente|floatformat:0|intcomma }} invertidos</small>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stats-card">
+            <div class="stats-number">{{ total_clientes }}</div>
+            <div class="stats-label">
+                <i class="fas fa-users me-2"></i>Total Clientes
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Análisis de ventas -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-trophy me-2"></i>Productos Más Vendidos (30 días)
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if productos_mas_vendidos %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th class="text-center">Vendidos</th>
+                                    <th class="text-end">Ingresos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for producto in productos_mas_vendidos %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ producto.producto__nombre }}</strong>
+                                        <br><small class="text-muted">{{ producto.producto__sku }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary">{{ producto.total_vendido }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>${{ producto.ingresos|floatformat:0|intcomma }}</strong>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-chart-bar fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">No hay datos de ventas</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-star me-2"></i>Clientes Más Activos (30 días)
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if clientes_activos %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Cliente</th>
+                                    <th class="text-center">Compras</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cliente in clientes_activos %}
+                                <tr>
+                                    <td><strong>{{ cliente.cliente__nombre }}</strong></td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success">{{ cliente.total_compras }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>${{ cliente.total_gastado|floatformat:0|intcomma }}</strong>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-users fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">No hay datos de clientes</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sección de acciones rápidas -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>Acciones Rápidas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <a href="{% url 'nueva_venta' %}" class="btn btn-primary w-100">
+                            <i class="fas fa-plus me-2"></i>Nueva Venta
+                        </a>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <a href="{% url 'cliente_add' %}" class="btn btn-success w-100">
+                            <i class="fas fa-user-plus me-2"></i>Nuevo Cliente
+                        </a>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <a href="{% url 'producto_add' %}" class="btn btn-warning w-100">
+                            <i class="fas fa-box me-2"></i>Nuevo Producto
+                        </a>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <a href="{% url 'proveedor_add' %}" class="btn btn-info w-100">
+                            <i class="fas fa-truck me-2"></i>Nuevo Proveedor
+                        </a>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <a href="{% url 'pedido_add' %}" class="btn btn-secondary w-100">
+                            <i class="fas fa-clipboard-list me-2"></i>Nuevo Pedido
+                        </a>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <a href="{% url 'venta_list' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-list me-2"></i>Ver Ventas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- Alertas de stock bajo -->
+{% if productos_alerta %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Productos con Stock Bajo</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                                <th>Stock Actual</th>
+                                <th>Stock Mínimo</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for producto in productos_alerta %}
+                            <tr>
+                                <td>{{ producto.nombre }}</td>
+                                <td>{{ producto.sku }}</td>
+                                <td><span class="badge bg-danger">{{ producto.stock_actual }}</span></td>
+                                <td>{{ producto.stock_minimo }}</td>
+                                <td>
+                                    <a href="{% url 'producto_edit' producto.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Alertas de pedidos pendientes -->
+{% if pedidos_alerta %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Pedidos Pendientes de Recibir</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Pedido #</th>
+                                <th>Proveedor</th>
+                                <th>Fecha</th>
+                                <th>Total</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pedido in pedidos_alerta %}
+                            <tr>
+                                <td><strong>#{{ pedido.id }}</strong></td>
+                                <td>{{ pedido.proveedor.nombre }}</td>
+                                <td>{{ pedido.fecha_pedido|date:"d/m/Y" }}</td>
+                                <td><strong>${{ pedido.costo_total|floatformat:2|intcomma }}</strong></td>
+                                <td>
+                                    <a href="{% url 'pedido_detail' pedido.id %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> Ver
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Ventas recientes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Ventas Recientes</h5>
+            </div>
+            <div class="card-body">
+                {% if ventas_recientes %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Cliente</th>
+                                <th>Fecha</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for venta in ventas_recientes %}
+                            <tr>
+                                <td>{{ venta.id }}</td>
+                                <td>{{ venta.cliente.nombre|default:"Cliente General" }}</td>
+                                <td>{{ venta.fecha|date:"d/m/Y H:i" }}</td>
+                                <td>${{ venta.monto_total }}</td>
+                                <td>
+                                    <span class="badge bg-{% if venta.estado == 'COMPLETADA' %}success{% elif venta.estado == 'PENDIENTE_PAGO' %}warning{% else %}secondary{% endif %}">
+                                        {{ venta.get_estado_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No hay ventas registradas aún.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

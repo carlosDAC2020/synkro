@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}Pedidos - Synkro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="page-title">
+                <i class="fas fa-clipboard-list me-3"></i>Pedidos a Proveedores
+            </h1>
+            <p class="page-subtitle">Gestión de órdenes de compra</p>
+        </div>
+        <a href="{% url 'pedido_add' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Nuevo Pedido
+        </a>
+    </div>
+</div>
+
+<!-- Filtros de búsqueda -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-6">
+                <input type="text" name="search" class="form-control" 
+                       placeholder="Buscar por proveedor o número de pedido..." 
+                       value="{{ search }}">
+            </div>
+            <div class="col-md-3">
+                <select name="estado" class="form-select">
+                    <option value="">Todos los estados</option>
+                    {% for value, label in estados %}
+                        <option value="{{ value }}" {% if value == estado_selected %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-outline-primary flex-fill">
+                        <i class="fas fa-search me-2"></i>Buscar
+                    </button>
+                    <a href="{% url 'pedido_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de pedidos -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>Lista de Pedidos
+        </h5>
+    </div>
+    <div class="card-body p-0">
+        {% if pedidos %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Proveedor</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
+                            <th>Total</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pedido in pedidos %}
+                        <tr>
+                            <td><strong>#{{ pedido.id }}</strong></td>
+                            <td>{{ pedido.proveedor.nombre }}</td>
+                            <td>{{ pedido.fecha_pedido|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if pedido.estado == 'PENDIENTE' %}
+                                    <span class="badge bg-warning">{{ pedido.get_estado_display }}</span>
+                                {% elif pedido.estado == 'RECIBIDO' %}
+                                    <span class="badge bg-success">{{ pedido.get_estado_display }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ pedido.get_estado_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>${{ pedido.costo_total|floatformat:2|intcomma }}</strong></td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'pedido_detail' pedido.pk %}" 
+                                       class="btn btn-outline-primary" title="Ver Detalle">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No hay pedidos registrados</h5>
+                <p class="text-muted">Comienza creando tu primer pedido a proveedor</p>
+                <a href="{% url 'pedido_add' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Nuevo Pedido
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

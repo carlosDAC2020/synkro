@@ -110,6 +110,11 @@ class VentaDetalle(models.Model):
         venta.monto_total = total
         venta.save()
 
+    @property
+    def subtotal(self):
+        """Calcula el subtotal de este detalle"""
+        return self.cantidad * self.precio_unitario_venta
+
     def __str__(self):
         return f"{self.cantidad} x {self.producto.nombre}"
 
@@ -131,7 +136,7 @@ class PedidoProveedor(models.Model):
         ('CANCELADO', 'Cancelado'),
     ]
     
-    proveedor = models.ForeignKey(Proveedor, on_delete=models.PROTECT)
+    proveedor = models.ForeignKey('Proveedor', on_delete=models.PROTECT)
     fecha_pedido = models.DateTimeField(auto_now_add=True)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PENDIENTE')
     costo_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, editable=False)
@@ -162,24 +167,21 @@ class PedidoProveedor(models.Model):
                             detalle.producto.stock_actual -= detalle.cantidad
                             detalle.producto.save()
                         else:
-                            raise ValidationError(f"No se puede revertir el stock para {detalle.producto.nombre}, ya que las unidades fueron vendidas.")
+                            # No se puede revertir más stock del disponible
+                            pass
         
         super().save(*args, **kwargs)
         self._estado_anterior = self.estado
 
 class PedidoDetalle(models.Model):
-    pedido = models.ForeignKey(PedidoProveedor, related_name='detalles_pedido', on_delete=models.CASCADE)
-    producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
+    pedido = models.ForeignKey(PedidoProveedor, on_delete=models.CASCADE, related_name='detalles_pedido')
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
     cantidad = models.PositiveIntegerField()
     costo_unitario_compra = models.DecimalField(max_digits=10, decimal_places=2)
     
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        # Recalcular el total del pedido padre
-        pedido = self.pedido
-        total = sum(d.cantidad * d.costo_unitario_compra for d in pedido.detalles_pedido.all())
-        pedido.costo_total = total
-        pedido.save()
-
+    @property
+    def subtotal(self):
+        return self.cantidad * self.costo_unitario_compra
+    
     def __str__(self):
         return f"{self.cantidad} x {self.producto.nombre} en Pedido #{self.pedido.id}"
