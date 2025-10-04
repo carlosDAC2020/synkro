@@ -118,7 +118,6 @@ class VentaDetalle(models.Model):
     def __str__(self):
         return f"{self.cantidad} x {self.producto.nombre}"
 
-# --- NUEVOS MODELOS PARA PROVEEDORES Y COMPRAS ---
 
 class Proveedor(models.Model):
     nombre = models.CharField(max_length=200)
