@@ -578,3 +578,9 @@ def pedido_cambiar_estado(request, pk):
             return redirect('pedido_detail', pk=pedido.id)
     
     return redirect('pedido_detail', pk=pedido.id)
+
+# === DOMICILIOS ===
+@login_required
+def domicilios_home(request):
+    """Vista principal del módulo de domicilios - En desarrollo"""
+    return render(request, 'domicilios/home.html')

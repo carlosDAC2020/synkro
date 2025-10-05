@@ -125,6 +125,23 @@
                             {% endif %}
                           </div>
                         </div>
+                        <div class="col-md-4">
+                          <div class="mb-3">
+                            <label class="form-label">
+                              <i class="fas fa-percent me-2"></i>Margen de Ganancia
+                            </label>
+                            <div class="form-control bg-light" id="margen-display" style="font-weight: bold; font-size: 1.1em;">
+                              {% if producto %}
+                                <span class="{% if producto.margen_ganancia >= 30 %}text-success{% elif producto.margen_ganancia >= 15 %}text-warning{% else %}text-danger{% endif %}">
+                                  {{ producto.margen_ganancia|floatformat:1 }}%
+                                </span>
+                                <small class="text-muted d-block" style="font-size: 0.8em;">Ganancia: ${{ producto.ganancia_unitaria|floatformat:2 }}</small>
+                              {% else %}
+                                <span class="text-muted">0.0%</span>
+                              {% endif %}
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                     <div class="d-flex justify-content-between">
@@ -170,6 +187,42 @@
         {% if producto %}
         <div class="card mt-3">
             <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Análisis de Rentabilidad</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-1">Costo Unitario</small>
+                    <h5 class="mb-0">${{ producto.costo_unitario|floatformat:2 }}</h5>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-1">Precio de Venta</small>
+                    <h5 class="mb-0">${{ producto.precio_venta|floatformat:2 }}</h5>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <small class="text-muted d-block mb-1">Ganancia Unitaria</small>
+                    <h5 class="mb-0 text-success">${{ producto.ganancia_unitaria|floatformat:2 }}</h5>
+                </div>
+                <div class="mb-0">
+                    <small class="text-muted d-block mb-1">Margen de Ganancia</small>
+                    <h4 class="mb-0 {% if producto.margen_ganancia >= 30 %}text-success{% elif producto.margen_ganancia >= 15 %}text-warning{% else %}text-danger{% endif %}">
+                        {{ producto.margen_ganancia|floatformat:1 }}%
+                    </h4>
+                    <small class="text-muted">
+                        {% if producto.margen_ganancia >= 30 %}
+                            <i class="fas fa-check-circle text-success"></i> Excelente margen
+                        {% elif producto.margen_ganancia >= 15 %}
+                            <i class="fas fa-exclamation-circle text-warning"></i> Margen aceptable
+                        {% else %}
+                            <i class="fas fa-times-circle text-danger"></i> Margen bajo
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
                 <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Estado del Stock</h6>
             </div>
             <div class="card-body">
@@ -189,4 +242,45 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const costoInput = document.querySelector('input[name="costo_unitario"]');
+    const precioInput = document.querySelector('input[name="precio_venta"]');
+    const margenDisplay = document.getElementById('margen-display');
+    
+    function calcularMargen() {
+        const costo = parseFloat(costoInput.value) || 0;
+        const precio = parseFloat(precioInput.value) || 0;
+        
+        if (costo > 0) {
+            const ganancia = precio - costo;
+            const margen = (ganancia / costo) * 100;
+            
+            let colorClass = 'text-danger';
+            if (margen >= 30) {
+                colorClass = 'text-success';
+            } else if (margen >= 15) {
+                colorClass = 'text-warning';
+            }
+            
+            margenDisplay.innerHTML = `
+                <span class="${colorClass}">
+                    ${margen.toFixed(1)}%
+                </span>
+                <small class="text-muted d-block" style="font-size: 0.8em;">Ganancia: $${ganancia.toFixed(2)}</small>
+            `;
+        } else {
+            margenDisplay.innerHTML = '<span class="text-muted">0.0%</span>';
+        }
+    }
+    
+    if (costoInput && precioInput) {
+        costoInput.addEventListener('input', calcularMargen);
+        precioInput.addEventListener('input', calcularMargen);
+    }
+});
+</script>
 {% endblock %}

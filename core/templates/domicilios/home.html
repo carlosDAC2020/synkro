@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block title %}Domicilios - Synkro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        <i class="fas fa-motorcycle me-3"></i>Módulo de Domicilios
+    </h1>
+    <p class="page-subtitle">Gestión de entregas a domicilio</p>
+</div>
+
+<!-- Sección En Desarrollo -->
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-lg">
+            <div class="card-body text-center py-5">
+                <div class="mb-4">
+                    <i class="fas fa-tools fa-5x text-warning" style="opacity: 0.7;"></i>
+                </div>
+                
+                <h2 class="mb-3" style="color: var(--primary-color); font-weight: 700;">
+                    Módulo en Desarrollo
+                </h2>
+                
+                <p class="lead text-muted mb-4">
+                    Estamos trabajando en crear una experiencia completa para la gestión de domicilios.
+                </p>
+                
+                <div class="alert alert-info border-0" style="background-color: #e0f2fe;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Próximamente disponible</strong>
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- Características Planeadas -->
+                <div class="row text-start mt-4">
+                    <div class="col-12 mb-3">
+                        <h5 class="mb-3" style="color: var(--dark-text);">
+                            <i class="fas fa-list-check me-2 text-primary"></i>Características Planeadas:
+                        </h5>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                            <div>
+                                <strong>Gestión de Repartidores</strong>
+                                <p class="text-muted small mb-0">Control completo del personal de entrega</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                            <div>
+                                <strong>Zonas de Entrega</strong>
+                                <p class="text-muted small mb-0">Definición de zonas con tarifas personalizadas</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                            <div>
+                                <strong>Seguimiento en Tiempo Real</strong>
+                                <p class="text-muted small mb-0">Monitoreo del estado de cada entrega</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                            <div>
+                                <strong>Integración con Ventas</strong>
+                                <p class="text-muted small mb-0">Vinculación directa con el sistema de ventas</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                            <div>
+                                <strong>Pago Contra Entrega</strong>
+                                <p class="text-muted small mb-0">Gestión de cobros en el momento de entrega</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+                            <div>
+                                <strong>Reportes y Estadísticas</strong>
+                                <p class="text-muted small mb-0">Análisis de desempeño de entregas</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 pt-3 border-top">
+                    <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-arrow-left me-2"></i>Volver al Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tarjeta adicional con información -->
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h6 class="mb-2">
+                            <i class="fas fa-lightbulb text-warning me-2"></i>Sugerencia
+                        </h6>
+                        <p class="text-muted mb-0 small">
+                            Mientras tanto, puedes seguir gestionando tus ventas normalmente. 
+                            El módulo de domicilios se integrará perfectamente con el sistema existente.
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <a href="{% url 'venta_list' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-shopping-cart me-2"></i>Ver Ventas
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+    }
+    
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 0.7;
+        }
+        50% {
+            opacity: 1;
+        }
+    }
+    
+    .fa-tools {
+        animation: pulse 2s ease-in-out infinite;
+    }
+</style>
+{% endblock %}

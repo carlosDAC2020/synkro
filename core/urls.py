@@ -45,6 +45,9 @@ urlpatterns = [
     path('pedidos/<int:pk>/cambiar-estado/', views.pedido_cambiar_estado, name='pedido_cambiar_estado'),
     path('pedidos/<int:pk>/pagos/nuevo/', views.pedido_pago_add, name='pedido_pago_add'),
     
+    # Domicilios
+    path('domicilios/', views.domicilios_home, name='domicilios_home'),
+    
     # API endpoints
     path('api/producto/<int:producto_id>/precio/', views.get_producto_precio, name='get_producto_precio'),
     path('api/buscar-productos/', views.buscar_productos, name='buscar_productos'),
