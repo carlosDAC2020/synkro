@@ -6,6 +6,14 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="fas fa-box me-2"></i>Gestión de Productos</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#importarModal">
+                <i class="fas fa-file-excel me-2"></i>Importar Excel
+            </button>
+            <a href="{% url 'productos_exportar_excel' %}" class="btn btn-outline-success">
+                <i class="fas fa-download me-2"></i>Exportar
+            </a>
+        </div>
         <a href="{% url 'producto_add' %}" class="btn btn-primary">
             <i class="fas fa-plus me-2"></i>Nuevo Producto
         </a>
@@ -145,4 +153,53 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Modal de Importación -->
+<div class="modal fade" id="importarModal" tabindex="-1" aria-labelledby="importarModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importarModalLabel">
+                    <i class="fas fa-file-excel me-2"></i>Importar Productos desde Excel
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'productos_importar_excel' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Instrucciones:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Descarga la plantilla Excel haciendo clic en el botón de abajo</li>
+                            <li>Completa los datos en el archivo Excel</li>
+                            <li>Deja el ID vacío para crear nuevos productos</li>
+                            <li>Incluye el ID para actualizar productos existentes</li>
+                            <li>La categoría debe existir previamente (nombre exacto)</li>
+                            <li>Sube el archivo completado</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <a href="{% url 'productos_descargar_plantilla' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-download me-2"></i>Descargar Plantilla Excel
+                        </a>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="archivo" class="form-label">Seleccionar archivo Excel:</label>
+                        <input type="file" class="form-control" id="archivo" name="archivo" accept=".xlsx,.xls" required>
+                        <small class="form-text text-muted">Formatos aceptados: .xlsx, .xls</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-upload me-2"></i>Importar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

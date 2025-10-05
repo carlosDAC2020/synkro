@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import excel_views
 
 urlpatterns = [
     # Dashboard
@@ -10,12 +11,18 @@ urlpatterns = [
     path('clientes/agregar/', views.cliente_add, name='cliente_add'),
     path('clientes/<int:pk>/editar/', views.cliente_edit, name='cliente_edit'),
     path('clientes/<int:pk>/eliminar/', views.cliente_delete, name='cliente_delete'),
+    path('clientes/exportar-excel/', excel_views.clientes_exportar_excel, name='clientes_exportar_excel'),
+    path('clientes/plantilla-excel/', excel_views.clientes_descargar_plantilla, name='clientes_descargar_plantilla'),
+    path('clientes/importar-excel/', excel_views.clientes_importar_excel, name='clientes_importar_excel'),
     
     # Productos
     path('productos/', views.producto_list, name='producto_list'),
     path('productos/agregar/', views.producto_add, name='producto_add'),
     path('productos/<int:pk>/editar/', views.producto_edit, name='producto_edit'),
     path('productos/<int:pk>/eliminar/', views.producto_delete, name='producto_delete'),
+    path('productos/exportar-excel/', excel_views.productos_exportar_excel, name='productos_exportar_excel'),
+    path('productos/plantilla-excel/', excel_views.productos_descargar_plantilla, name='productos_descargar_plantilla'),
+    path('productos/importar-excel/', excel_views.productos_importar_excel, name='productos_importar_excel'),
     
     # Ventas
     path('ventas/', views.venta_list, name='venta_list'),
@@ -27,6 +34,9 @@ urlpatterns = [
     path('proveedores/agregar/', views.proveedor_add, name='proveedor_add'),
     path('proveedores/<int:pk>/editar/', views.proveedor_edit, name='proveedor_edit'),
     path('proveedores/<int:pk>/eliminar/', views.proveedor_delete, name='proveedor_delete'),
+    path('proveedores/exportar-excel/', excel_views.proveedores_exportar_excel, name='proveedores_exportar_excel'),
+    path('proveedores/plantilla-excel/', excel_views.proveedores_descargar_plantilla, name='proveedores_descargar_plantilla'),
+    path('proveedores/importar-excel/', excel_views.proveedores_importar_excel, name='proveedores_importar_excel'),
     
     # Pedidos
     path('pedidos/', views.pedido_list, name='pedido_list'),
