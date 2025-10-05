@@ -138,3 +138,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:51722',
     'http://localhost:8000',
 ]
+
+
+# Archivos subidos por usuarios (MEDIA)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'

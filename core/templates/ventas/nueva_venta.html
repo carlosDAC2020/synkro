@@ -75,8 +75,8 @@
                                 </div>
                             {% endif %}
                             
-                            <div class="row">
-                                <div class="col-md-5">
+                            <div class="row align-items-end">
+                                <div class="col-md-4">
                                     <label class="form-label">Producto</label>
                                     {{ form.producto }}
                                     {% if form.producto.errors %}
@@ -97,12 +97,10 @@
                                         <div class="text-danger small">{{ form.precio_unitario_venta.errors.0 }}</div>
                                     {% endif %}
                                 </div>
-                                <div class="col-md-2 d-flex align-items-end">
-                                    {% if not forloop.first %}
-                                    <button type="button" class="btn btn-danger btn-sm remove-form">
+                                <div class="col-md-3 d-flex align-items-center justify-content-end">
+                                    <button type="button" class="btn btn-danger btn-sm remove-form" title="Eliminar producto">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                    {% endif %}
                                     {{ form.DELETE }}
                                 </div>
                             </div>
@@ -231,11 +229,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Función para actualizar visibilidad de botones de eliminar
+    function updateDeleteButtons() {
+        const visibleForms = document.querySelectorAll('.formset-form:not([style*="display: none"])');
+        visibleForms.forEach((form, index) => {
+            const deleteBtn = form.querySelector('.remove-form');
+            if (deleteBtn) {
+                // Siempre mostrar el botón, pero deshabilitar si solo hay un producto visible
+                deleteBtn.disabled = visibleForms.length <= 1;
+            }
+        });
+    }
+    
     // Función para calcular totales
     function updateTotals() {
         let subtotal = 0;
         
-        document.querySelectorAll('.formset-form').forEach(form => {
+        document.querySelectorAll('.formset-form:not([style*="display: none"])').forEach(form => {
             const cantidad = parseFloat(form.querySelector('input[name$="-cantidad"]').value) || 0;
             const precio = parseFloat(form.querySelector('input[name$="-precio_unitario_venta"]').value) || 0;
             subtotal += cantidad * precio;
@@ -247,6 +257,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`;
         document.getElementById('iva').textContent = `$${iva.toFixed(2)}`;
         document.getElementById('total').textContent = `$${total.toFixed(2)}`;
+        
+        updateDeleteButtons();
     }
     
     // Event listeners para productos existentes
@@ -286,10 +298,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             
-            // Agregar botón de eliminar
+            // Asegurar que el botón de eliminar esté visible
             const deleteBtn = emptyForm.querySelector('.remove-form');
             if (deleteBtn) {
-                deleteBtn.style.display = 'block';
+                deleteBtn.style.display = 'inline-block';
+                deleteBtn.disabled = false;
             }
             
             container.appendChild(emptyForm);
@@ -330,11 +343,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelector('input[name="form-TOTAL_FORMS"]').value = formCount;
             }
             updateTotals();
+            updateDeleteButtons();
         }
     });
     
     // Calcular totales iniciales
     updateTotals();
+    updateDeleteButtons();
 });
 </script>
 {% endblock %}

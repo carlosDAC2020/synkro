@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Synkro{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="page-title">
+        <i class="fas fa-money-bill-wave me-3"></i>{{ title }}
+      </h1>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'pedido_detail' pedido.id %}">Pedido #{{ pedido.id }}</a></li>
+          <li class="breadcrumb-item active">Nuevo Pago</li>
+        </ol>
+      </nav>
+    </div>
+    <div>
+      <a href="{% url 'pedido_detail' pedido.id %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Volver
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Datos del pago</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Monto</label>
+              {{ form.monto }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Método de pago</label>
+              {{ form.metodo_pago }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Referencia/Comprobante</label>
+              {{ form.referencia }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Documento de soporte</label>
+              {{ form.documento_soporte }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">Notas</label>
+              {{ form.notas }}
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save me-2"></i>Guardar Pago
+            </button>
+            <a href="{% url 'pedido_detail' pedido.id %}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header"><h5 class="mb-0"><i class="fas fa-clipboard-list me-2"></i>Resumen Pedido</h5></div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-2">
+          <span>Pedido:</span>
+          <span><strong>#{{ pedido.id }}</strong></span>
+        </div>
+        <div class="d-flex justify-content-between mb-2">
+          <span>Proveedor:</span>
+          <span><strong>{{ pedido.proveedor.nombre }}</strong></span>
+        </div>
+        <div class="d-flex justify-content-between mb-2">
+          <span>Total:</span>
+          <span class="text-primary"><strong>${{ pedido.costo_total|floatformat:2 }}</strong></span>
+        </div>
+        <div class="d-flex justify-content-between mb-2">
+          <span>Total pagado:</span>
+          <span class="text-success"><strong>${{ pedido.total_pagado|floatformat:2 }}</strong></span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span>Saldo pendiente:</span>
+          <span class="text-danger"><strong>${{ pedido.saldo_pendiente|floatformat:2 }}</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -8,8 +8,8 @@ from django.http import JsonResponse
 from django.db import transaction
 from django.db.models import Q, F
 
-from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle
-from .forms import ClienteForm, ProductoForm, VentaForm, VentaDetalleFormSet, ProveedorForm, PedidoProveedorForm, PedidoDetalleFormSet
+from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor
+from .forms import ClienteForm, ProductoForm, VentaForm, VentaDetalleFormSet, ProveedorForm, PedidoProveedorForm, PedidoDetalleFormSet, PagoProveedorForm
 
 # Dashboard
 @login_required
@@ -348,7 +348,6 @@ def nueva_venta(request):
                     total = sum(d.cantidad * d.precio_unitario_venta for d in detalles)
                     venta.monto_total = total
                     venta.save()
-                    
                     messages.success(request, f'Venta #{venta.id} creada exitosamente.')
                     return redirect('venta_detail', pk=venta.id)
     else:
@@ -364,10 +363,9 @@ def nueva_venta(request):
 def venta_detail(request, pk):
     venta = get_object_or_404(Venta, pk=pk)
     detalles = venta.detalles.select_related('producto')
-    
     return render(request, 'ventas/detail.html', {
         'venta': venta,
-        'detalles': detalles
+        'detalles': detalles,
     })
 
 # API endpoints para AJAX
@@ -499,38 +497,63 @@ def pedido_add(request):
     if request.method == 'POST':
         pedido_form = PedidoProveedorForm(request.POST)
         formset = PedidoDetalleFormSet(request.POST)
-        
+
         if pedido_form.is_valid() and formset.is_valid():
             with transaction.atomic():
                 pedido = pedido_form.save()
                 formset.instance = pedido
                 detalles = formset.save()
-                
+
                 # Calcular total
                 total = sum(d.cantidad * d.costo_unitario_compra for d in detalles)
                 pedido.costo_total = total
                 pedido.save()
-                
+
                 messages.success(request, f'Pedido #{pedido.id} creado exitosamente.')
                 return redirect('pedido_detail', pk=pedido.id)
+        # Si no es válido, caemos a render con errores
     else:
         pedido_form = PedidoProveedorForm()
         formset = PedidoDetalleFormSet()
-    
+
     return render(request, 'pedidos/form.html', {
         'pedido_form': pedido_form,
         'formset': formset,
         'title': 'Nuevo Pedido'
+    })
+    
+# === PAGOS A PROVEEDORES ===
+@login_required
+def pedido_pago_add(request, pk):
+    pedido = get_object_or_404(PedidoProveedor, pk=pk)
+    if request.method == 'POST':
+        form = PagoProveedorForm(request.POST, request.FILES)
+        if form.is_valid():
+            pago = form.save(commit=False)
+            pago.pedido = pedido
+            pago.usuario = request.user
+            pago.save()
+            messages.success(request, f'Pago registrado para el Pedido #{pedido.id}.')
+            return redirect('pedido_detail', pk=pedido.id)
+    else:
+        form = PagoProveedorForm()
+    return render(request, 'pedidos/pago_form.html', {
+        'form': form,
+        'pedido': pedido,
+        'title': f'Nuevo Pago - Pedido #{pedido.id}'
     })
 
 @login_required
 def pedido_detail(request, pk):
     pedido = get_object_or_404(PedidoProveedor, pk=pk)
     detalles = pedido.detalles_pedido.select_related('producto')
-    
+    pagos = pedido.pagos.select_related('usuario').order_by('-fecha_pago') if hasattr(pedido, 'pagos') else []
     return render(request, 'pedidos/detail.html', {
         'pedido': pedido,
-        'detalles': detalles
+        'detalles': detalles,
+        'pagos': pagos,
+        'total_pagado': pedido.total_pagado,
+        'saldo_pendiente': pedido.saldo_pendiente,
     })
 
 @login_required

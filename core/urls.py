@@ -33,6 +33,7 @@ urlpatterns = [
     path('pedidos/nuevo/', views.pedido_add, name='pedido_add'),
     path('pedidos/<int:pk>/', views.pedido_detail, name='pedido_detail'),
     path('pedidos/<int:pk>/cambiar-estado/', views.pedido_cambiar_estado, name='pedido_cambiar_estado'),
+    path('pedidos/<int:pk>/pagos/nuevo/', views.pedido_pago_add, name='pedido_pago_add'),
     
     # API endpoints
     path('api/producto/<int:producto_id>/precio/', views.get_producto_precio, name='get_producto_precio'),

@@ -1,10 +1,10 @@
 from django import forms
-from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle
+from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor
 
 class ClienteForm(forms.ModelForm):
     class Meta:
         model = Cliente
-        fields = ['nombre', 'telefono', 'email']
+        fields = ['nombre', 'telefono', 'email', 'razon_social', 'direccion']
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -17,6 +17,14 @@ class ClienteForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'correo@ejemplo.com'
+            }),
+            'razon_social': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Razón social (opcional)'
+            }),
+            'direccion': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Dirección (opcional)'
             }),
         }
 
@@ -39,7 +47,7 @@ class CategoriaForm(forms.ModelForm):
 class ProductoForm(forms.ModelForm):
     class Meta:
         model = Producto
-        fields = ['nombre', 'sku', 'categoria', 'descripcion', 'stock_actual', 'stock_minimo', 'precio_venta']
+        fields = ['nombre', 'sku', 'categoria', 'descripcion', 'stock_actual', 'stock_minimo', 'costo_unitario', 'precio_venta']
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -63,6 +71,11 @@ class ProductoForm(forms.ModelForm):
             }),
             'stock_minimo': forms.NumberInput(attrs={
                 'class': 'form-control',
+                'min': '0'
+            }),
+            'costo_unitario': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
                 'min': '0'
             }),
             'precio_venta': forms.NumberInput(attrs={
@@ -127,7 +140,7 @@ VentaDetalleFormSet = forms.inlineformset_factory(
 class ProveedorForm(forms.ModelForm):
     class Meta:
         model = Proveedor
-        fields = ['nombre', 'contacto', 'telefono', 'email']
+        fields = ['nombre', 'contacto', 'razon_social', 'direccion', 'telefono', 'email']
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -137,6 +150,14 @@ class ProveedorForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Nombre del contacto principal'
             }),
+            'razon_social': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Razón social (opcional)'
+            }),
+            'direccion': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Dirección (opcional)'
+            }),
             'telefono': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Teléfono de contacto'
@@ -144,6 +165,34 @@ class ProveedorForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'correo@proveedor.com'
+            }),
+        }
+
+class PagoProveedorForm(forms.ModelForm):
+    class Meta:
+        model = PagoProveedor
+        fields = ['monto', 'metodo_pago', 'referencia', 'documento_soporte', 'notas']
+        widgets = {
+            'monto': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0'
+            }),
+            'metodo_pago': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Efectivo, Transferencia, etc.'
+            }),
+            'referencia': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Referencia/comprobante'
+            }),
+            'documento_soporte': forms.ClearableFileInput(attrs={
+                'class': 'form-control'
+            }),
+            'notas': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Notas adicionales'
             }),
         }
 

@@ -99,20 +99,33 @@
                                 {% endif %}
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="{{ form.precio_venta.id_for_label }}" class="form-label">
-                                    <i class="fas fa-dollar-sign me-2"></i>Precio de Venta *
-                                </label>
-                                {{ form.precio_venta }}
-                                {% if form.precio_venta.errors %}
-                                    <div class="text-danger small mt-1">
-                                        {{ form.precio_venta.errors.0 }}
-                                    </div>
-                                {% endif %}
-                            </div>
-                        </div>
+                        
                     </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                          <div class="mb-3">
+                            <label for="{{ form.costo_unitario.id_for_label }}" class="form-label">
+                              <i class="fas fa-dollar-sign me-2"></i>Costo Unitario *
+                            </label>
+                            {{ form.costo_unitario }}
+                            {% if form.costo_unitario.errors %}
+                              <div class="text-danger small mt-1">{{ form.costo_unitario.errors.0 }}</div>
+                            {% endif %}
+                          </div>
+                        </div>
+                        <div class="col-md-4">
+                          <div class="mb-3">
+                            <label for="{{ form.precio_venta.id_for_label }}" class="form-label">
+                              <i class="fas fa-dollar-sign me-2"></i>Precio de Venta *
+                            </label>
+                            {{ form.precio_venta }}
+                            {% if form.precio_venta.errors %}
+                              <div class="text-danger small mt-1">{{ form.precio_venta.errors.0 }}</div>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
 
                     <div class="d-flex justify-content-between">
                         <button type="submit" class="btn btn-primary">
