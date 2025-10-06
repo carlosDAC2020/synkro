@@ -1,0 +1,409 @@
+{% extends 'base.html' %}
+
+{% block title %}Planificar Rutas - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-route me-2"></i>Planificación de Rutas</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'listar_rutas' %}" class="btn btn-outline-primary me-2">
+            <i class="fas fa-list me-2"></i>Ver Rutas
+        </a>
+        <a href="{% url 'domicilios_home' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver
+        </a>
+    </div>
+</div>
+
+{% if total_ventas == 0 %}
+<div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>No hay ventas pendientes de entrega.</strong> Asegúrate de marcar las ventas con 'Requiere Domicilio' y que tengan coordenadas GPS.
+</div>
+{% else %}
+
+<div class="row">
+    <!-- Panel de Control -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="fas fa-cog me-2"></i>Panel de Control</h6>
+            </div>
+            <div class="card-body">
+                <!-- Sucursal -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-store me-2"></i>Sucursal de Origen
+                    </label>
+                    <select id="sucursal-select" class="form-select">
+                        <option value="">Seleccione una sucursal...</option>
+                    </select>
+                </div>
+
+                <!-- Estadísticas -->
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <div class="card bg-light">
+                            <div class="card-body text-center p-2">
+                                <h4 class="mb-0 text-primary" id="total-ventas">{{ total_ventas }}</h4>
+                                <small class="text-muted">Pendientes</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card bg-light">
+                            <div class="card-body text-center p-2">
+                                <h4 class="mb-0 text-success" id="total-seleccionadas">0</h4>
+                                <small class="text-muted">Seleccionadas</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-filter me-2"></i>Filtrar por Prioridad
+                    </label>
+                    <div class="btn-group w-100" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary filter-btn active" data-filter="todas">Todas</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger filter-btn" data-filter="alta">Alta</button>
+                        <button type="button" class="btn btn-sm btn-outline-warning filter-btn" data-filter="media">Media</button>
+                        <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-filter="baja">Baja</button>
+                    </div>
+                </div>
+
+                <!-- Lista de Ventas -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-shopping-cart me-2"></i>Entregas a Planificar
+                    </label>
+                    <div id="ventas-container" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Se llenará dinámicamente -->
+                    </div>
+                </div>
+
+                <!-- Botones de Acción -->
+                <button id="planificar-btn" class="btn btn-primary w-100 mb-2" disabled>
+                    <i class="fas fa-route me-2"></i>Calcular Ruta Óptima
+                </button>
+                <button id="limpiar-btn" class="btn btn-outline-secondary w-100">
+                    <i class="fas fa-eraser me-2"></i>Limpiar
+                </button>
+            </div>
+        </div>
+
+        <!-- Resumen de Ruta -->
+        <div class="card shadow-sm mt-3" id="route-info" style="display: none;">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Resumen de la Ruta</h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 mb-3">
+                        <h4 class="mb-0 text-primary" id="distance">-</h4>
+                        <small class="text-muted">Distancia</small>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <h4 class="mb-0 text-primary" id="duration">-</h4>
+                        <small class="text-muted">Tiempo</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="mb-0 text-primary" id="stops">-</h4>
+                        <small class="text-muted">Paradas</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="mb-0 text-primary" id="efficiency">-</h4>
+                        <small class="text-muted">Eficiencia</small>
+                    </div>
+                </div>
+                <button id="guardar-ruta-btn" class="btn btn-success w-100 mt-3">
+                    <i class="fas fa-save me-2"></i>Guardar Ruta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mapa -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-map me-2"></i>Mapa de Entregas</h6>
+            </div>
+            <div class="card-body p-0">
+                <div id="map" style="height: 700px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Spinner -->
+<div class="modal fade" id="loadingModal" data-bs-backdrop="static" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p class="mb-0">Calculando ruta óptima...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const sucursales = {{ sucursales_json|safe }};
+const ventasPendientes = {{ ventas_json|safe }};
+
+let map, controlDeRuta = null, currentFilter = 'todas';
+let rutaCalculada = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar mapa
+    map = L.map('map').setView([10.9685, -74.7813], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    cargarSucursales();
+    cargarVentas();
+    setupEventListeners();
+});
+
+function cargarSucursales() {
+    const select = document.getElementById('sucursal-select');
+    sucursales.forEach(suc => {
+        const option = document.createElement('option');
+        option.value = suc.id;
+        option.textContent = suc.nombre;
+        select.appendChild(option);
+    });
+
+    // Mostrar todas las sucursales en el mapa
+    sucursales.forEach((suc, i) => {
+        const marker = L.marker(suc.coords, {
+            icon: L.divIcon({
+                html: `<div style="background: var(--primary-color); color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${i + 1}</div>`,
+                className: '',
+                iconSize: [30, 30]
+            })
+        }).addTo(map);
+        marker.bindPopup(`<b>${suc.nombre}</b><br>Punto de origen`);
+    });
+}
+
+function cargarVentas() {
+    const container = document.getElementById('ventas-container');
+    container.innerHTML = '';
+    
+    const ventasFiltradas = currentFilter === 'todas' 
+        ? ventasPendientes 
+        : ventasPendientes.filter(v => v.prioridad === currentFilter);
+
+    if (ventasFiltradas.length === 0) {
+        container.innerHTML = '<div class="alert alert-info small">No hay ventas con esta prioridad</div>';
+        return;
+    }
+
+    ventasFiltradas.forEach(venta => {
+        const prioridadClass = venta.prioridad === 'alta' ? 'danger' : venta.prioridad === 'media' ? 'warning' : 'success';
+        const item = document.createElement('div');
+        item.className = 'card mb-2 venta-item';
+        item.innerHTML = `
+            <div class="card-body p-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="${venta.id}" data-venta='${JSON.stringify(venta)}'>
+                    <label class="form-check-label w-100" for="${venta.id}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <strong class="d-block">${venta.direccion}</strong>
+                                <small class="text-muted d-block">${venta.cliente}</small>
+                                <small class="text-muted d-block">📦 ${venta.productos}</small>
+                            </div>
+                            <span class="badge bg-${prioridadClass} ms-2">${venta.prioridad.toUpperCase()}</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        `;
+        
+        const checkbox = item.querySelector('input');
+        checkbox.addEventListener('change', () => {
+            item.classList.toggle('border-primary', checkbox.checked);
+            actualizarEstadisticas();
+        });
+        
+        container.appendChild(item);
+    });
+}
+
+function setupEventListeners() {
+    document.getElementById('planificar-btn').addEventListener('click', planificarRuta);
+    document.getElementById('limpiar-btn').addEventListener('click', limpiarRuta);
+    document.getElementById('guardar-ruta-btn')?.addEventListener('click', guardarRuta);
+    
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilter = btn.dataset.filter;
+            cargarVentas();
+            actualizarEstadisticas();
+        });
+    });
+}
+
+function actualizarEstadisticas() {
+    const seleccionadas = document.querySelectorAll('#ventas-container input:checked').length;
+    document.getElementById('total-seleccionadas').textContent = seleccionadas;
+    document.getElementById('planificar-btn').disabled = seleccionadas === 0 || !document.getElementById('sucursal-select').value;
+}
+
+function planificarRuta() {
+    const sucursalId = document.getElementById('sucursal-select').value;
+    if (!sucursalId) {
+        alert('Selecciona una sucursal de origen');
+        return;
+    }
+
+    const sucursal = sucursales.find(s => s.id == sucursalId);
+    const ventasChecked = document.querySelectorAll('#ventas-container input:checked');
+
+    if (ventasChecked.length === 0) return;
+
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    loadingModal.show();
+
+    const waypoints = [L.latLng(sucursal.coords)];
+    const ventasSeleccionadas = [];
+
+    ventasChecked.forEach(v => {
+        const data = JSON.parse(v.dataset.venta);
+        waypoints.push(L.latLng(data.coords));
+        ventasSeleccionadas.push(data);
+    });
+
+    if (controlDeRuta) {
+        map.removeControl(controlDeRuta);
+    }
+
+    setTimeout(() => {
+        controlDeRuta = L.Routing.control({
+            waypoints: waypoints,
+            routeWhileDragging: false,
+            router: L.Routing.osrmv1({
+                serviceUrl: 'https://router.project-osrm.org/route/v1'
+            }),
+            lineOptions: {
+                styles: [{ color: 'var(--primary-color)', weight: 6, opacity: 0.8 }]
+            },
+            createMarker: function(i, wp, n) {
+                let label, color = 'var(--primary-color)';
+                
+                if (i === 0) {
+                    label = `<b>🏢 ${sucursal.nombre}</b><br>Punto de partida`;
+                } else {
+                    const venta = ventasSeleccionadas[i-1];
+                    label = `<b>Parada ${i}</b><br>${venta.direccion}<br><small>${venta.productos}</small>`;
+                    color = venta.prioridad === 'alta' ? '#dc3545' : venta.prioridad === 'media' ? '#ffc107' : '#198754';
+                }
+                
+                const icon = L.divIcon({
+                    html: `<div style="background: ${color}; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${i === 0 ? '🏢' : i}</div>`,
+                    className: '',
+                    iconSize: [30, 30]
+                });
+                
+                return L.marker(wp.latLng, { icon }).bindPopup(label);
+            }
+        }).addTo(map);
+
+        controlDeRuta.on('routesfound', function(e) {
+            const route = e.routes[0];
+            const distanceKm = (route.summary.totalDistance / 1000).toFixed(2);
+            const durationMin = Math.round(route.summary.totalTime / 60);
+            const efficiency = Math.round((waypoints.length - 1) / (durationMin / 60 * 10) * 100);
+
+            document.getElementById('distance').textContent = ${distanceKm} km;
+            document.getElementById('duration').textContent = ${durationMin} min;
+            document.getElementById('stops').textContent = waypoints.length - 1;
+            document.getElementById('efficiency').textContent = ${efficiency}%;
+            document.getElementById('route-info').style.display = 'block';
+            
+            rutaCalculada = {
+                sucursal_id: sucursalId,
+                distancia: distanceKm,
+                tiempo: durationMin,
+                num_paradas: waypoints.length - 1,
+                waypoints: waypoints.map(w => [w.lat, w.lng]),
+                ventas_ids: ventasSeleccionadas.map(v => v.venta_id),
+                geometria: route.coordinates
+            };
+            
+            loadingModal.hide();
+        });
+    }, 300);
+}
+
+function limpiarRuta() {
+    if (controlDeRuta) {
+        map.removeControl(controlDeRuta);
+        controlDeRuta = null;
+    }
+    document.querySelectorAll('#ventas-container input:checked').forEach(c => {
+        c.checked = false;
+        c.closest('.venta-item').classList.remove('border-primary');
+    });
+    document.getElementById('route-info').style.display = 'none';
+    document.getElementById('sucursal-select').value = '';
+    actualizarEstadisticas();
+    rutaCalculada = null;
+}
+
+async function guardarRuta() {
+    if (!rutaCalculada) return;
+    
+    try {
+        const response = await fetch('{% url "guardar_ruta" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(rutaCalculada)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('✅ Ruta guardada exitosamente!');
+            window.location.href = '{% url "listar_rutas" %}';
+        } else {
+            alert('❌ Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('❌ Error al guardar la ruta: ' + error);
+    }
+}
+
+// Actualizar estadísticas al cambiar sucursal
+document.getElementById('sucursal-select')?.addEventListener('change', actualizarEstadisticas);
+</script>
+
+<style>
+.venta-item {
+    transition: all 0.3s;
+    cursor: pointer;
+}
+.venta-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.venta-item.border-primary {
+    border-width: 2px !important;
+}
+</style>
+{% endblock %}

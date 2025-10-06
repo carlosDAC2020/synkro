@@ -582,5 +582,118 @@ def pedido_cambiar_estado(request, pk):
 # === DOMICILIOS ===
 @login_required
 def domicilios_home(request):
-    """Vista principal del módulo de domicilios - En desarrollo"""
+    """Simulador interactivo del módulo de domicilios"""
     return render(request, 'domicilios/home.html')
+
+@login_required
+def planificar_rutas(request):
+    """Vista para planificar rutas de entrega"""
+    from .models import Sucursal, Venta, DetalleRuta
+    import json
+    from django.core.serializers.json import DjangoJSONEncoder
+    
+    # Obtener sucursales activas
+    sucursales = Sucursal.objects.filter(activa=True)
+    
+    # Ventas pendientes de entrega (completadas pero sin ruta asignada)
+    ventas_pendientes = Venta.objects.filter(
+        requiere_domicilio=True,
+        estado='COMPLETADA'
+    ).exclude(
+        id__in=DetalleRuta.objects.values_list('venta_id', flat=True)
+    ).select_related('cliente').prefetch_related('detalles__producto')
+    
+    # Preparar datos de sucursales para JavaScript
+    sucursales_data = []
+    for suc in sucursales:
+        sucursales_data.append({
+            'id': suc.id,
+            'nombre': suc.nombre,
+            'coords': [float(suc.latitud), float(suc.longitud)]
+        })
+    
+    # Preparar datos de ventas para JavaScript
+    ventas_data = []
+    for venta in ventas_pendientes:
+        if venta.coordenadas_entrega:
+            # Obtener productos de la venta
+            productos = ', '.join([d.producto.nombre for d in venta.detalles.all()[:2]])
+            if venta.detalles.count() > 2:
+                productos += f' (+{venta.detalles.count() - 2} más)'
+            
+            ventas_data.append({
+                'id': f'V{venta.id:03d}',
+                'venta_id': venta.id,
+                'direccion': venta.direccion_entrega,
+                'cliente': venta.cliente.nombre if venta.cliente else 'Cliente General',
+                'productos': productos,
+                'coords': venta.coordenadas_entrega,
+                'prioridad': venta.prioridad_entrega,
+                'monto': float(venta.monto_total)
+            })
+    
+    context = {
+        'sucursales_json': json.dumps(sucursales_data, cls=DjangoJSONEncoder),
+        'ventas_json': json.dumps(ventas_data, cls=DjangoJSONEncoder),
+        'total_ventas': len(ventas_data)
+    }
+    
+    return render(request, 'domicilios/planificar_rutas.html', context)
+
+@login_required
+def guardar_ruta(request):
+    """API para guardar ruta planificada"""
+    from .models import RutaEntrega, DetalleRuta
+    import json
+    from datetime import datetime
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            
+            # Crear la ruta
+            ruta = RutaEntrega.objects.create(
+                sucursal_origen_id=data['sucursal_id'],
+                fecha_entrega=datetime.now().date(),
+                distancia_total_km=data['distancia'],
+                tiempo_estimado_min=data['tiempo'],
+                numero_paradas=data['num_paradas'],
+                waypoints=data['waypoints'],
+                geometria_ruta=data.get('geometria', {})
+            )
+            
+            # Guardar detalles de la ruta
+            for idx, venta_id in enumerate(data['ventas_ids'], 1):
+                DetalleRuta.objects.create(
+                    ruta=ruta,
+                    venta_id=venta_id,
+                    orden_entrega=idx
+                )
+            
+            messages.success(request, f'Ruta #{ruta.id} creada exitosamente con {ruta.numero_paradas} paradas.')
+            return JsonResponse({
+                'success': True, 
+                'ruta_id': ruta.id,
+                'message': f'Ruta creada exitosamente'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False, 
+                'error': str(e)
+            }, status=400)
+    
+    return JsonResponse({'success': False, 'error': 'Método no permitido'}, status=405)
+
+@login_required
+def listar_rutas(request):
+    """Lista de rutas planificadas"""
+    from .models import RutaEntrega
+    
+    rutas = RutaEntrega.objects.select_related(
+        'sucursal_origen', 'repartidor'
+    ).prefetch_related('detalles').order_by('-fecha_creacion')
+    
+    return render(request, 'domicilios/listar_rutas.html', {
+        'rutas': rutas
+    })

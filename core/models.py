@@ -83,6 +83,19 @@ class Venta(models.Model):
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, help_text="Usuario que realizó la venta")
     estado = models.CharField(max_length=30, choices=ESTADO_CHOICES, default='COMPLETADA')
     monto_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, editable=False)
+    
+    # Campos para domicilios
+    requiere_domicilio = models.BooleanField(default=False, help_text="Indica si requiere entrega a domicilio")
+    direccion_entrega = models.CharField(max_length=300, blank=True, help_text="Dirección de entrega")
+    latitud_entrega = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitud_entrega = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    prioridad_entrega = models.CharField(
+        max_length=10,
+        choices=[('alta', 'Alta'), ('media', 'Media'), ('baja', 'Baja')],
+        default='media',
+        help_text="Prioridad de entrega"
+    )
+    
     _estado_anterior = None
 
     def __init__(self, *args, **kwargs):
@@ -91,6 +104,13 @@ class Venta(models.Model):
 
     def __str__(self):
         return f"Venta #{self.id} - {self.fecha.strftime('%d/%m/%Y')}"
+    
+    @property
+    def coordenadas_entrega(self):
+        """Retorna coordenadas de entrega como lista [lat, lng]"""
+        if self.latitud_entrega and self.longitud_entrega:
+            return [float(self.latitud_entrega), float(self.longitud_entrega)]
+        return None
 
     def save(self, *args, **kwargs):
         # Ajustes de stock solo cuando cambia estado respecto a COMPLETADA
@@ -239,3 +259,135 @@ class PagoProveedor(models.Model):
 
     def __str__(self):
         return f"Pago {self.monto} - Pedido #{self.pedido_id}"
+
+
+# === MÓDULO DE DOMICILIOS ===
+
+class Sucursal(models.Model):
+    """Sucursales/Puntos de origen para envío de domicilios"""
+    nombre = models.CharField(max_length=200, unique=True, help_text="Nombre de la sucursal")
+    codigo = models.CharField(max_length=20, unique=True, help_text="Código único de la sucursal")
+    
+    # Ubicación
+    direccion = models.CharField(max_length=300)
+    ciudad = models.CharField(max_length=100, default='Barranquilla')
+    departamento = models.CharField(max_length=100, default='Atlántico')
+    latitud = models.DecimalField(max_digits=10, decimal_places=7, help_text="Latitud de la ubicación")
+    longitud = models.DecimalField(max_digits=10, decimal_places=7, help_text="Longitud de la ubicación")
+    
+    # Información de contacto
+    telefono = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True, null=True)
+    
+    # Configuración
+    activa = models.BooleanField(default=True, help_text="Indica si la sucursal está operativa")
+    es_principal = models.BooleanField(default=False, help_text="Sucursal principal por defecto")
+    radio_cobertura_km = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=10.0,
+        help_text="Radio de cobertura en kilómetros"
+    )
+    
+    # Horarios (opcional)
+    horario_apertura = models.TimeField(null=True, blank=True)
+    horario_cierre = models.TimeField(null=True, blank=True)
+    
+    # Metadata
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    notas = models.TextField(blank=True, help_text="Notas adicionales sobre la sucursal")
+    
+    def __str__(self):
+        return f"{self.nombre} ({self.codigo})"
+    
+    def save(self, *args, **kwargs):
+        # Si se marca como principal, desmarcar las demás
+        if self.es_principal:
+            Sucursal.objects.filter(es_principal=True).update(es_principal=False)
+        super().save(*args, **kwargs)
+    
+    @property
+    def coordenadas(self):
+        """Retorna las coordenadas como tupla (lat, lng)"""
+        return (float(self.latitud), float(self.longitud))
+    
+    @property
+    def url_google_maps(self):
+        """Genera URL de Google Maps para la ubicación"""
+        return f"https://www.google.com/maps?q={self.latitud},{self.longitud}"
+    
+    class Meta:
+        verbose_name_plural = "Sucursales"
+        ordering = ['-es_principal', 'nombre']
+
+
+class Repartidor(models.Model):
+    """Repartidores para entregas a domicilio"""
+    ESTADO_CHOICES = [
+        ('ACTIVO', 'Activo'),
+        ('INACTIVO', 'Inactivo'),
+        ('EN_RUTA', 'En Ruta'),
+    ]
+    
+    nombre = models.CharField(max_length=200)
+    telefono = models.CharField(max_length=20)
+    documento = models.CharField(max_length=50, unique=True)
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='ACTIVO')
+    fecha_ingreso = models.DateField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.nombre
+    
+    class Meta:
+        verbose_name_plural = "Repartidores"
+
+
+class RutaEntrega(models.Model):
+    """Rutas planificadas para entregas"""
+    ESTADO_CHOICES = [
+        ('PLANIFICADA', 'Planificada'),
+        ('EN_CURSO', 'En Curso'),
+        ('COMPLETADA', 'Completada'),
+        ('CANCELADA', 'Cancelada'),
+    ]
+    
+    sucursal_origen = models.ForeignKey(Sucursal, on_delete=models.PROTECT, related_name='rutas')
+    repartidor = models.ForeignKey(Repartidor, on_delete=models.SET_NULL, null=True, blank=True, related_name='rutas')
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_entrega = models.DateField()
+    
+    # Datos de la ruta
+    distancia_total_km = models.DecimalField(max_digits=6, decimal_places=2)
+    tiempo_estimado_min = models.PositiveIntegerField()
+    numero_paradas = models.PositiveIntegerField()
+    
+    # Geometría de la ruta (JSON)
+    waypoints = models.JSONField(help_text="Coordenadas de los puntos de la ruta")
+    geometria_ruta = models.JSONField(null=True, blank=True, help_text="Geometría completa de la ruta")
+    
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PLANIFICADA')
+    
+    def __str__(self):
+        return f"Ruta #{self.id} - {self.sucursal_origen.nombre} - {self.fecha_entrega}"
+    
+    class Meta:
+        verbose_name_plural = "Rutas de Entrega"
+        ordering = ['-fecha_creacion']
+
+
+class DetalleRuta(models.Model):
+    """Ventas incluidas en una ruta"""
+    ruta = models.ForeignKey(RutaEntrega, related_name='detalles', on_delete=models.CASCADE)
+    venta = models.ForeignKey(Venta, on_delete=models.CASCADE)
+    orden_entrega = models.PositiveIntegerField(help_text="Orden en la ruta (1, 2, 3...)")
+    tiempo_estimado_llegada = models.TimeField(null=True, blank=True)
+    entregado = models.BooleanField(default=False)
+    hora_entrega_real = models.DateTimeField(null=True, blank=True)
+    observaciones = models.TextField(blank=True)
+    
+    def __str__(self):
+        return f"Parada {self.orden_entrega} - Venta #{self.venta.id}"
+    
+    class Meta:
+        verbose_name_plural = "Detalles de Ruta"
+        ordering = ['orden_entrega']

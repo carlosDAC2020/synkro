@@ -1,5 +1,5 @@
 from django import forms
-from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor
+from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, Sucursal
 
 class ClienteForm(forms.ModelForm):
     class Meta:
@@ -238,3 +238,76 @@ PedidoDetalleFormSet = forms.inlineformset_factory(
     validate_min=True,
     can_delete=True
 )
+
+# === FORMULARIOS PARA DOMICILIOS ===
+
+class SucursalForm(forms.ModelForm):
+    class Meta:
+        model = Sucursal
+        fields = ['nombre', 'codigo', 'direccion', 'ciudad', 'departamento', 
+                  'latitud', 'longitud', 'telefono', 'email', 'activa', 'es_principal',
+                  'radio_cobertura_km', 'horario_apertura', 'horario_cierre', 'notas']
+        widgets = {
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre de la sucursal'
+            }),
+            'codigo': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Código único (ej: SUC001)'
+            }),
+            'direccion': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Dirección completa'
+            }),
+            'ciudad': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ciudad'
+            }),
+            'departamento': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Departamento'
+            }),
+            'latitud': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.0000001',
+                'placeholder': 'Ej: 10.9685'
+            }),
+            'longitud': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.0000001',
+                'placeholder': 'Ej: -74.7813'
+            }),
+            'telefono': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Teléfono de contacto'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'correo@sucursal.com'
+            }),
+            'activa': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            }),
+            'es_principal': forms.CheckboxInput(attrs={
+                'class': 'form-check-input'
+            }),
+            'radio_cobertura_km': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.1',
+                'min': '0'
+            }),
+            'horario_apertura': forms.TimeInput(attrs={
+                'class': 'form-control',
+                'type': 'time'
+            }),
+            'horario_cierre': forms.TimeInput(attrs={
+                'class': 'form-control',
+                'type': 'time'
+            }),
+            'notas': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Notas adicionales (opcional)'
+            }),
+        }

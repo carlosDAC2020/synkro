@@ -47,6 +47,9 @@ urlpatterns = [
     
     # Domicilios
     path('domicilios/', views.domicilios_home, name='domicilios_home'),
+    path('domicilios/planificar-rutas/', views.planificar_rutas, name='planificar_rutas'),
+    path('domicilios/guardar-ruta/', views.guardar_ruta, name='guardar_ruta'),
+    path('domicilios/listar-rutas/', views.listar_rutas, name='listar_rutas'),
     
     # API endpoints
     path('api/producto/<int:producto_id>/precio/', views.get_producto_precio, name='get_producto_precio'),

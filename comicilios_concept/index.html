@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Planificación de Rutas - Avanzado</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        #panel-control {
+            width: 420px;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+            overflow-y: auto;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 25px;
+            flex: 1;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-number {
+            background: #667eea;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s;
+            background: white;
+            cursor: pointer;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        #ventas-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .filter-btn {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-btn:hover {
+            border-color: #667eea;
+        }
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .venta-item {
+            background: white;
+            border: 2px solid #e8e8e8;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .venta-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .venta-item.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+        }
+
+        .venta-item input[type="checkbox"] {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .venta-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-right: 30px;
+        }
+
+        .venta-id {
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .priority {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .priority.alta { background: #ff6b6b; color: white; }
+        .priority.media { background: #ffd93d; color: #333; }
+        .priority.baja { background: #6bcf7f; color: white; }
+
+        .venta-direccion {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .venta-productos {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .venta-footer {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .venta-footer span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        #planificar-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #planificar-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        #planificar-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        #limpiar-btn {
+            background: #f1f3f5;
+            color: #495057;
+        }
+
+        #limpiar-btn:hover {
+            background: #e9ecef;
+        }
+
+        .route-info {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .route-info.visible {
+            display: block;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .route-info h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .route-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .route-stat {
+            text-align: center;
+        }
+
+        .route-stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .route-stat-label {
+            font-size: 11px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
+        #mapa {
+            flex: 1;
+            height: 100vh;
+            position: relative;
+        }
+
+        .leaflet-routing-container {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 2000;
+        }
+
+        .loading.visible {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div id="panel-control">
+        <div class="header">
+            <h1>🚚 Sistema de Rutas</h1>
+            <p>Planificación inteligente de entregas</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <div class="section-title">
+                    <span class="section-number">1</span>
+                    Sucursal de Salida
+                </div>
+                <select id="sucursal-select"></select>
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-ventas">0</div>
+                        <div class="stat-label">Entregas Pendientes</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="total-seleccionadas">0</div>
+                        <div class="stat-label">Seleccionadas</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <span class="section-number">2</span>
+                    Entregas a Planificar
+                </div>
+                <div class="filters">
+                    <button class="filter-btn active" data-filter="todas">Todas</button>
+                    <button class="filter-btn" data-filter="alta">Alta</button>
+                    <button class="filter-btn" data-filter="media">Media</button>
+                    <button class="filter-btn" data-filter="baja">Baja</button>
+                </div>
+                <div id="ventas-container"></div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">
+                    <span class="section-number">3</span>
+                    Acciones
+                </div>
+                <div class="action-buttons">
+                    <button id="planificar-btn" disabled>Calcular Ruta Óptima</button>
+                    <button id="limpiar-btn">Limpiar</button>
+                </div>
+            </div>
+
+            <div class="route-info" id="route-info">
+                <h3>📊 Resumen de la Ruta</h3>
+                <div class="route-stats">
+                    <div class="route-stat">
+                        <div class="route-stat-value" id="distance">-</div>
+                        <div class="route-stat-label">Distancia Total</div>
+                    </div>
+                    <div class="route-stat">
+                        <div class="route-stat-value" id="duration">-</div>
+                        <div class="route-stat-label">Tiempo Estimado</div>
+                    </div>
+                    <div class="route-stat">
+                        <div class="route-stat-value" id="stops">-</div>
+                        <div class="route-stat-label">Paradas</div>
+                    </div>
+                    <div class="route-stat">
+                        <div class="route-stat-value" id="efficiency">-</div>
+                        <div class="route-stat-label">Eficiencia</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mapa"></div>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>Calculando ruta óptima...</div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+    <script>
+        const sucursales = [
+            { nombre: "Sucursal Centro", coords: [19.4326, -99.1332] },
+            { nombre: "Sucursal Sur", coords: [19.3443, -99.1600] },
+            { nombre: "Sucursal Norte", coords: [19.4913, -99.1390] },
+            { nombre: "Sucursal Oriente", coords: [19.4284, -99.0721] }
+        ];
+
+        const ventasPendientes = [
+            { id: 'V001', direccion: "Palacio de Bellas Artes", productos: "Laptop HP, Mouse Logitech", coords: [19.4352, -99.1412], prioridad: "alta", peso: "5kg" },
+            { id: 'V002', direccion: "Museo Frida Kahlo", productos: "Libro de Arte, Taza Cerámica", coords: [19.3548, -99.1622], prioridad: "media", peso: "2kg" },
+            { id: 'V003', direccion: "Ángel de la Independencia", productos: "Cámara Canon EOS", coords: [19.4270, -99.1677], prioridad: "alta", peso: "3kg" },
+            { id: 'V004', direccion: "Parque La Mexicana", productos: "Ropa deportiva, Termo Stanley", coords: [19.3629, -99.2741], prioridad: "baja", peso: "4kg" },
+            { id: 'V005', direccion: "Arena México", productos: "Máscara de luchador, Playera", coords: [19.4255, -99.1522], prioridad: "media", peso: "1kg" },
+            { id: 'V006', direccion: "Castillo de Chapultepec", productos: "Set de cuadros decorativos", coords: [19.4204, -99.1819], prioridad: "baja", peso: "6kg" },
+            { id: 'V007', direccion: "Basílica de Guadalupe", productos: "Artículos religiosos", coords: [19.4847, -99.1175], prioridad: "alta", peso: "3kg" },
+            { id: 'V008', direccion: "Torre Latinoamericana", productos: "Equipo de oficina", coords: [19.4337, -99.1406], prioridad: "media", peso: "8kg" }
+        ];
+
+        const mapa = L.map('mapa').setView([19.4326, -99.1332], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(mapa);
+
+        let controlDeRuta = null;
+        let marcadoresSucursales = [];
+        let currentFilter = 'todas';
+
+        function init() {
+            cargarSucursales();
+            cargarVentas();
+            setupEventListeners();
+            actualizarEstadisticas();
+            mostrarMarcadoresSucursales();
+        }
+
+        function cargarSucursales() {
+            const select = document.getElementById('sucursal-select');
+            sucursales.forEach((suc, i) => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = suc.nombre;
+                select.appendChild(option);
+            });
+        }
+
+        function cargarVentas() {
+            const container = document.getElementById('ventas-container');
+            container.innerHTML = '';
+            
+            const ventasFiltradas = currentFilter === 'todas' 
+                ? ventasPendientes 
+                : ventasPendientes.filter(v => v.prioridad === currentFilter);
+
+            ventasFiltradas.forEach(venta => {
+                const item = document.createElement('div');
+                item.className = 'venta-item';
+                item.innerHTML = `
+                    <input type="checkbox" id="${venta.id}" data-venta='${JSON.stringify(venta)}'>
+                    <div class="venta-header">
+                        <span class="venta-id">${venta.id}</span>
+                        <span class="priority ${venta.prioridad}">${venta.prioridad.toUpperCase()}</span>
+                    </div>
+                    <div class="venta-direccion">${venta.direccion}</div>
+                    <div class="venta-productos">📦 ${venta.productos}</div>
+                    <div class="venta-footer">
+                        <span>⚖️ ${venta.peso}</span>
+                        <span>📍 ${venta.coords[0].toFixed(4)}, ${venta.coords[1].toFixed(4)}</span>
+                    </div>
+                `;
+                
+                item.addEventListener('click', (e) => {
+                    if (e.target.type !== 'checkbox') {
+                        const checkbox = item.querySelector('input');
+                        checkbox.checked = !checkbox.checked;
+                        item.classList.toggle('selected', checkbox.checked);
+                        actualizarEstadisticas();
+                    }
+                });
+
+                const checkbox = item.querySelector('input');
+                checkbox.addEventListener('change', () => {
+                    item.classList.toggle('selected', checkbox.checked);
+                    actualizarEstadisticas();
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        function mostrarMarcadoresSucursales() {
+            marcadoresSucursales.forEach(m => mapa.removeLayer(m));
+            marcadoresSucursales = [];
+
+            sucursales.forEach((suc, i) => {
+                const icon = L.divIcon({
+                    html: `<div style="background: #667eea; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${i + 1}</div>`,
+                    className: '',
+                    iconSize: [32, 32]
+                });
+                const marker = L.marker(suc.coords, { icon }).addTo(mapa);
+                marker.bindPopup(`<b>${suc.nombre}</b><br>Punto de partida`);
+                marcadoresSucursales.push(marker);
+            });
+        }
+
+        function setupEventListeners() {
+            document.getElementById('planificar-btn').addEventListener('click', planificarRuta);
+            document.getElementById('limpiar-btn').addEventListener('click', limpiarRuta);
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilter = btn.dataset.filter;
+                    cargarVentas();
+                    actualizarEstadisticas();
+                });
+            });
+        }
+
+        function actualizarEstadisticas() {
+            const seleccionadas = document.querySelectorAll('#ventas-container input:checked').length;
+            document.getElementById('total-ventas').textContent = ventasPendientes.length;
+            document.getElementById('total-seleccionadas').textContent = seleccionadas;
+            document.getElementById('planificar-btn').disabled = seleccionadas === 0;
+        }
+
+        function planificarRuta() {
+            const sucursalIndex = document.getElementById('sucursal-select').value;
+            const puntoPartida = sucursales[sucursalIndex].coords;
+            const ventasChecked = document.querySelectorAll('#ventas-container input:checked');
+
+            if (ventasChecked.length === 0) return;
+
+            document.getElementById('loading').classList.add('visible');
+
+            const waypoints = [L.latLng(puntoPartida)];
+            ventasChecked.forEach(v => {
+                const data = JSON.parse(v.dataset.venta);
+                waypoints.push(L.latLng(data.coords));
+            });
+
+            if (controlDeRuta) {
+                mapa.removeControl(controlDeRuta);
+            }
+
+            setTimeout(() => {
+                controlDeRuta = L.Routing.control({
+                    waypoints: waypoints,
+                    routeWhileDragging: false,
+                    router: L.Routing.osrmv1({
+                        serviceUrl: 'https://router.project-osrm.org/route/v1'
+                    }),
+                    lineOptions: {
+                        styles: [{
+                            color: '#667eea',
+                            weight: 6,
+                            opacity: 0.8
+                        }]
+                    },
+                    createMarker: function(i, wp, n) {
+                        let label = '';
+                        let color = '#667eea';
+                        
+                        if (i === 0) {
+                            label = `🏢 ${sucursales[sucursalIndex].nombre}`;
+                        } else {
+                            const ventaData = Array.from(ventasChecked)[i-1];
+                            const venta = JSON.parse(ventaData.dataset.venta);
+                            label = `${i}. ${venta.direccion}<br>📦 ${venta.productos}`;
+                            color = venta.prioridad === 'alta' ? '#ff6b6b' : venta.prioridad === 'media' ? '#ffd93d' : '#6bcf7f';
+                        }
+                        
+                        const icon = L.divIcon({
+                            html: `<div style="background: ${color}; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 14px;">${i === 0 ? '🏢' : i}</div>`,
+                            className: '',
+                            iconSize: [30, 30]
+                        });
+                        
+                        return L.marker(wp.latLng, { icon }).bindPopup(label);
+                    }
+                }).addTo(mapa);
+
+                controlDeRuta.on('routesfound', function(e) {
+                    const route = e.routes[0];
+                    const distanceKm = (route.summary.totalDistance / 1000).toFixed(2);
+                    const durationMin = Math.round(route.summary.totalTime / 60);
+                    const efficiency = Math.round((waypoints.length - 1) / (durationMin / 60 * 10) * 100);
+
+                    document.getElementById('distance').textContent = `${distanceKm} km`;
+                    document.getElementById('duration').textContent = `${durationMin} min`;
+                    document.getElementById('stops').textContent = waypoints.length - 1;
+                    document.getElementById('efficiency').textContent = `${efficiency}%`;
+                    document.getElementById('route-info').classList.add('visible');
+                    document.getElementById('loading').classList.remove('visible');
+                });
+            }, 300);
+        }
+
+        function limpiarRuta() {
+            if (controlDeRuta) {
+                mapa.removeControl(controlDeRuta);
+                controlDeRuta = null;
+            }
+            document.querySelectorAll('#ventas-container input:checked').forEach(c => {
+                c.checked = false;
+                c.closest('.venta-item').classList.remove('selected');
+            });
+            document.getElementById('route-info').classList.remove('visible');
+            actualizarEstadisticas();
+            mapa.setView([19.4326, -99.1332], 12);
+        }
+
+        init();
+    </script>
+</body>
+</html>

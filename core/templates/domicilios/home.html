@@ -1,160 +1,288 @@
 {% extends 'base.html' %}
 
-{% block title %}Domicilios - Synkro{% endblock %}
+{% block title %}Simulador de Domicilios - Synkro{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">
-        <i class="fas fa-motorcycle me-3"></i>Módulo de Domicilios
+<div class='page-header'>
+    <h1 class='page-title'>
+        <i class='fas fa-motorcycle me-3'></i>Simulador de Domicilios
     </h1>
-    <p class="page-subtitle">Gestión de entregas a domicilio</p>
+    <p class='page-subtitle'>Demostración interactiva del sistema de entregas</p>
 </div>
 
-<!-- Sección En Desarrollo -->
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card border-0 shadow-lg">
-            <div class="card-body text-center py-5">
-                <div class="mb-4">
-                    <i class="fas fa-tools fa-5x text-warning" style="opacity: 0.7;"></i>
+<div class='alert alert-info mb-4'>
+    <i class='fas fa-info-circle me-2'></i>
+    <strong>Modo Demo:</strong> Este es un simulador con datos ficticios para visualizar cómo funcionará el módulo de domicilios.
+</div>
+
+<div class='row'>
+    <!-- Panel de Control -->
+    <div class='col-lg-4 mb-4'>
+        <div class='card shadow-sm'>
+            <div class='card-header bg-primary text-white'>
+                <h6 class='mb-0'><i class='fas fa-cog me-2'></i>Panel de Control</h6>
+            </div>
+            <div class='card-body'>
+                <!-- Selección de Sucursal -->
+                <div class='mb-3'>
+                    <label class='form-label'><i class='fas fa-store me-2'></i>Sucursal de Origen</label>
+                    <select id='sucursalSelect' class='form-select'>
+                        <option value='0'>Sucursal Centro (Principal)</option>
+                        <option value='1'>Sucursal Norte</option>
+                        <option value='2'>Sucursal Sur</option>
+                    </select>
                 </div>
-                
-                <h2 class="mb-3" style="color: var(--primary-color); font-weight: 700;">
-                    Módulo en Desarrollo
-                </h2>
-                
-                <p class="lead text-muted mb-4">
-                    Estamos trabajando en crear una experiencia completa para la gestión de domicilios.
-                </p>
-                
-                <div class="alert alert-info border-0" style="background-color: #e0f2fe;">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong>Próximamente disponible</strong>
-                </div>
-                
-                <hr class="my-4">
-                
-                <!-- Características Planeadas -->
-                <div class="row text-start mt-4">
-                    <div class="col-12 mb-3">
-                        <h5 class="mb-3" style="color: var(--dark-text);">
-                            <i class="fas fa-list-check me-2 text-primary"></i>Características Planeadas:
-                        </h5>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
-                            <div>
-                                <strong>Gestión de Repartidores</strong>
-                                <p class="text-muted small mb-0">Control completo del personal de entrega</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
-                            <div>
-                                <strong>Zonas de Entrega</strong>
-                                <p class="text-muted small mb-0">Definición de zonas con tarifas personalizadas</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
-                            <div>
-                                <strong>Seguimiento en Tiempo Real</strong>
-                                <p class="text-muted small mb-0">Monitoreo del estado de cada entrega</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
-                            <div>
-                                <strong>Integración con Ventas</strong>
-                                <p class="text-muted small mb-0">Vinculación directa con el sistema de ventas</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
-                            <div>
-                                <strong>Pago Contra Entrega</strong>
-                                <p class="text-muted small mb-0">Gestión de cobros en el momento de entrega</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i class="fas fa-check-circle text-success me-3 mt-1"></i>
-                            <div>
-                                <strong>Reportes y Estadísticas</strong>
-                                <p class="text-muted small mb-0">Análisis de desempeño de entregas</p>
-                            </div>
-                        </div>
+
+                <!-- Ventas Pendientes -->
+                <div class='mb-3'>
+                    <div id='ventasList' class='list-group' style='max-height: 300px; overflow-y: auto;'>
+                        <!-- Se llenará dinámicamente -->
                     </div>
                 </div>
-                
+
                 <div class="mt-4 pt-3 border-top">
-                    <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+                    <a href="{% url 'planificar_rutas' %}" class="btn btn-primary btn-lg w-100 mb-2">
+                        <i class="fas fa-route me-2"></i>Planificar Rutas de Entrega
+                    </a>
+                    <a href="{% url 'listar_rutas' %}" class="btn btn-success btn-lg w-100 mb-2">
+                        <i class="fas fa-list me-2"></i>Ver Rutas Planificadas
+                    </a>
+                    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-lg w-100">
                         <i class="fas fa-arrow-left me-2"></i>Volver al Dashboard
                     </a>
                 </div>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class='card shadow-sm mt-3'>
+            <div class='card-header'>
+                <h6 class='mb-0'><i class='fas fa-chart-bar me-2'></i>Estadísticas de Ruta</h6>
+            </div>
+            <div class='card-body'>
+                <div class='d-flex justify-content-between mb-2'>
+                    <span>Distancia Total:</span>
+                    <strong id='distanciaTotal'>0 km</strong>
+                </div>
+                <div class='d-flex justify-content-between mb-2'>
+                    <span>Tiempo Estimado:</span>
+                    <strong id='tiempoEstimado'>0 min</strong>
+                </div>
+                <div class='d-flex justify-content-between'>
+                    <span>Entregas:</span>
+                    <strong id='numEntregas'>0</strong>
+                </div>
             </div>
         </div>
-        
-        <!-- Tarjeta adicional con información -->
-        <div class="card border-0 shadow-sm mt-4">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h6 class="mb-2">
-                            <i class="fas fa-lightbulb text-warning me-2"></i>Sugerencia
-                        </h6>
-                        <p class="text-muted mb-0 small">
-                            Mientras tanto, puedes seguir gestionando tus ventas normalmente. 
-                            El módulo de domicilios se integrará perfectamente con el sistema existente.
-                        </p>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <a href="{% url 'venta_list' %}" class="btn btn-outline-primary">
-                            <i class="fas fa-shopping-cart me-2"></i>Ver Ventas
-                        </a>
-                    </div>
-                </div>
+    </div>
+
+    <!-- Mapa Interactivo -->
+    <div class='col-lg-8 mb-4'>
+        <div class='card shadow-sm'>
+            <div class='card-header'>
+                <h6 class='mb-0'><i class='fas fa-map me-2'></i>Mapa de Entregas</h6>
+            </div>
+            <div class='card-body p-0'>
+                <div id='map' style='height: 600px;'></div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Historial de Rutas -->
+<div class='row'>
+    <div class='col-12'>
+        <div class='card shadow-sm'>
+            <div class='card-header'>
+                <h6 class='mb-0'><i class='fas fa-history me-2'></i>Historial de Rutas (Simulado)</h6>
+            </div>
+            <div class='card-body'>
+                <div class='table-responsive'>
+                    <table class='table table-hover'>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Repartidor</th>
+                                <th>Sucursal</th>
+                                <th>Entregas</th>
+                                <th>Distancia</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id='historialTable'>
+                            <!-- Se llenará con datos ficticios -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Datos ficticios
+const sucursales = [
+    { id: 0, nombre: 'Sucursal Centro', lat: 10.9685, lng: -74.7813, color: '#3498db' },
+    { id: 1, nombre: 'Sucursal Norte', lat: 11.0185, lng: -74.8013, color: '#e74c3c' },
+    { id: 2, nombre: 'Sucursal Sur', lat: 10.9185, lng: -74.7613, color: '#2ecc71' }
+];
+
+const ventasFicticias = [
+    { id: 1, cliente: 'Juan Pérez', direccion: 'Calle 72 #45-23', lat: 10.9785, lng: -74.7913, monto: 150000 },
+    { id: 2, cliente: 'María García', direccion: 'Carrera 50 #80-15', lat: 10.9885, lng: -74.8013, monto: 85000 },
+    { id: 3, cliente: 'Carlos López', direccion: 'Calle 85 #52-30', lat: 10.9985, lng: -74.7713, monto: 220000 },
+    { id: 4, cliente: 'Ana Martínez', direccion: 'Carrera 43 #70-10', lat: 10.9585, lng: -74.7813, monto: 95000 },
+    { id: 5, cliente: 'Pedro Rodríguez', direccion: 'Calle 76 #48-20', lat: 10.9685, lng: -74.7913, monto: 175000 }
+];
+
+const historialFicticio = [
+    { fecha: '2025-10-04', repartidor: 'Luis Gómez', sucursal: 'Centro', entregas: 8, distancia: 15.5, estado: 'Completada' },
+    { fecha: '2025-10-04', repartidor: 'Ana Silva', sucursal: 'Norte', entregas: 6, distancia: 12.3, estado: 'Completada' },
+    { fecha: '2025-10-03', repartidor: 'Carlos Ruiz', sucursal: 'Sur', entregas: 10, distancia: 18.7, estado: 'Completada' },
+    { fecha: '2025-10-03', repartidor: 'María Torres', sucursal: 'Centro', entregas: 7, distancia: 14.2, estado: 'Completada' },
+    { fecha: '2025-10-02', repartidor: 'Luis Gómez', sucursal: 'Norte', entregas: 9, distancia: 16.8, estado: 'Completada' }
+];
+
+let map, sucursalActual = 0, ventasSeleccionadas = [], rutaActual = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar mapa
+    map = L.map('map').setView([10.9685, -74.7813], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Cargar datos iniciales
+    cargarVentas();
+    cargarHistorial();
+    mostrarSucursalEnMapa();
+
+    // Event listeners
+    document.getElementById('sucursalSelect').addEventListener('change', function() {
+        sucursalActual = parseInt(this.value);
+        mostrarSucursalEnMapa();
+    });
+
+    document.getElementById('generarRutaBtn').addEventListener('click', generarRuta);
+    document.getElementById('simularEntregaBtn').addEventListener('click', simularEntrega);
+});
+
+function cargarVentas() {
+    const ventasList = document.getElementById('ventasList');
+    ventasList.innerHTML = ventasFicticias.map(venta => 
+        <div class='list-group-item'>
+            <div class='form-check'>
+                <input class='form-check-input' type='checkbox' value='' id='venta'>
+                <label class='form-check-label' for='venta'>
+                    <strong></strong><br>
+                    <small class='text-muted'></small><br>
+                    <span class='badge bg-success'>{venta.monto.toLocaleString()}</span>
+                </label>
+            </div>
+        </div>
+    ).join('');
+}
+
+function cargarHistorial() {
+    const historialTable = document.getElementById('historialTable');
+    historialTable.innerHTML = historialFicticio.map(ruta => 
+        <tr>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td><span class='badge bg-primary'></span></td>
+            <td> km</td>
+            <td><span class='badge bg-success'></span></td>
+        </tr>
+    ).join('');
+}
+
+function mostrarSucursalEnMapa() {
+    map.eachLayer(layer => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+            map.removeLayer(layer);
+        }
+    });
+
+    const sucursal = sucursales[sucursalActual];
+    const marker = L.marker([sucursal.lat, sucursal.lng], {
+        icon: L.divIcon({
+            className: 'custom-div-icon',
+            html: <div style='background-color: ; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);'></div>,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        })
+    }).addTo(map);
+
+    marker.bindPopup(<b></b><br>Punto de Origen).openPopup();
+    map.setView([sucursal.lat, sucursal.lng], 13);
+}
+
+function generarRuta() {
+    const checkboxes = document.querySelectorAll('#ventasList input[type=checkbox]:checked');
+    ventasSeleccionadas = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+    if (ventasSeleccionadas.length === 0) {
+        alert('Selecciona al menos una venta para generar la ruta');
+        return;
+    }
+
+    // Limpiar mapa
+    map.eachLayer(layer => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+            map.removeLayer(layer);
+        }
+    });
+
+    const sucursal = sucursales[sucursalActual];
+    const puntos = [sucursal];
+    
+    // Agregar ventas seleccionadas
+    ventasSeleccionadas.forEach(id => {
+        const venta = ventasFicticias.find(v => v.id === id);
+        if (venta) puntos.push(venta);
+    });
+
+    // Dibujar marcadores
+    L.marker([sucursal.lat, sucursal.lng], {
+        icon: L.divIcon({
+            className: 'custom-div-icon',
+            html: <div style='background-color: ; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white;'></div>,
+            iconSize: [30, 30]
+        })
+    }).addTo(map).bindPopup(<b></b>);
+
+    ventasSeleccionadas.forEach((id, index) => {
+        const venta = ventasFicticias.find(v => v.id === id);
+        L.marker([venta.lat, venta.lng]).addTo(map)
+            .bindPopup(<b>Parada </b><br><br>);
+    });
+
+    // Dibujar ruta
+    const coords = puntos.map(p => [p.lat, p.lng]);
+    rutaActual = L.polyline(coords, { color: '#e74c3c', weight: 4 }).addTo(map);
+    map.fitBounds(rutaActual.getBounds(), { padding: [50, 50] });
+
+    // Actualizar estadísticas
+    const distancia = (Math.random() * 10 + 5).toFixed(1);
+    const tiempo = Math.round(distancia * 4);
+    document.getElementById('distanciaTotal').textContent = ${distancia} km;
+    document.getElementById('tiempoEstimado').textContent = ${tiempo} min;
+    document.getElementById('numEntregas').textContent = ventasSeleccionadas.length;
+
+    document.getElementById('simularEntregaBtn').disabled = false;
+}
+
+function simularEntrega() {
+    alert('🚀 Simulación iniciada!\n\nEn la versión completa, aquí verás:\n- Animación del repartidor en el mapa\n- Actualización en tiempo real\n- Notificaciones de entregas\n- Tracking GPS');
+}
+</script>
+
 <style>
-    .card {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    
-    .card:hover {
-        transform: translateY(-2px);
-    }
-    
-    @keyframes pulse {
-        0%, 100% {
-            opacity: 0.7;
-        }
-        50% {
-            opacity: 1;
-        }
-    }
-    
-    .fa-tools {
-        animation: pulse 2s ease-in-out infinite;
-    }
+.custom-div-icon {
+    background: none;
+    border: none;
+}
 </style>
 {% endblock %}
