@@ -1,0 +1,479 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Simulador de Domicilios - Synkro{% endblock %}
+
+
+{% block extra_css %}
+<!-- Estilos de Leaflet (cargados en el head) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
+{% endblock %}
+
+{% block content %}
+
+<!-- CSS Específico para esta página -->
+<style>
+    /* Aseguramos que el contenedor principal ocupe toda la altura disponible */
+    .main-content {
+        padding: 0 !important; /* Sobreescribe el padding de base.html para que no haya espacios */
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    /* --- CORRECCIÓN CLAVE 1 --- */
+    /* Hacemos que el div intermedio (hijo directo de main-content) ocupe toda la altura */
+    .main-content > div {
+        height: 100%;
+    }
+
+    /* --- CORRECCIÓN CLAVE 2 --- */
+    .simulador-container {
+        height: 100%; /* Hacemos que el contenedor del simulador también ocupe el 100% de la altura */
+        display: flex;
+        overflow: hidden;
+    }
+
+    #panel-control {
+        width: 450px; /* Ancho del panel de control */
+        background: var(--white-bg);
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        z-index: 100;
+    }
+
+    .panel-header {
+        padding: 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .panel-header h4 {
+        color: var(--primary-color);
+        font-weight: 600;
+        font-size: 1.25rem;
+    }
+
+    .panel-content {
+        padding: 24px;
+        overflow-y: auto; /* Scroll solo para el contenido del panel */
+        flex-grow: 1;
+    }
+
+    #mapa {
+        flex-grow: 1; /* El mapa ocupa el resto del espacio horizontal */
+        height: 100%; /* Esta regla ahora funcionará correctamente */
+    }
+
+    /* Estilos para la lista de ventas */
+    #ventas-container {
+        max-height: 400px; /* Altura máxima antes de hacer scroll */
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+
+    .venta-item {
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .venta-item:hover {
+        border-color: var(--primary-color);
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+    }
+
+    .venta-item.selected {
+        border-color: var(--primary-dark);
+        background-color: #eef2ff;
+    }
+
+    .venta-item input[type="checkbox"] {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+
+    .venta-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .priority { font-size: 0.75rem; font-weight: 600; }
+    .priority.alta { color: var(--danger-color); }
+    .priority.media { color: var(--warning-color); }
+    .priority.baja { color: var(--success-color); }
+
+    /* Estilos para el spinner de carga */
+    .loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 20px 30px;
+        border-radius: 10px;
+        box-shadow: var(--shadow-lg);
+        display: none;
+        z-index: 2000;
+        text-align: center;
+    }
+
+    .loading.visible {
+        display: block;
+    }
+
+    /* Scrollbar personalizado */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--primary-color); }
+
+</style>
+
+<!-- Aquí comienza la estructura del simulador -->
+<div class="simulador-container">
+    
+    <!-- Panel de Control (Izquierda) -->
+    <div id="panel-control">
+        <div class="panel-header">
+            <h4><i class="fas fa-route me-2"></i>Planificador de Rutas</h4>
+            <p class="text-muted mb-0 small">Optimización de entregas en tiempo real</p>
+        </div>
+
+        <div class="panel-content">
+            <div class="mb-4">
+                <label for="sucursal-select" class="form-label fw-bold"><span class="badge bg-primary me-1">1</span> Sucursal de Salida</label>
+                <select id="sucursal-select" class="form-select"></select>
+                
+                <div class="row mt-3 g-2">
+                    <div class="col">
+                        <div class="stats-card p-3">
+                            <div class="stats-number fs-4" id="total-ventas">0</div>
+                            <div class="stats-label fs-sm">Pendientes</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="stats-card p-3">
+                            <div class="stats-number fs-4" id="total-seleccionadas">0</div>
+                            <div class="stats-label fs-sm">Seleccionadas</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-bold"><span class="badge bg-primary me-1">2</span> Entregas a Planificar</label>
+                <div class="btn-group w-100 mb-3" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary active filter-btn" data-filter="todas">Todas</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-filter="alta">Alta</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-filter="media">Media</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary filter-btn" data-filter="baja">Baja</button>
+                </div>
+                <div id="ventas-container"></div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-bold"><span class="badge bg-primary me-1">3</span> Acciones</label>
+                <div class="d-grid gap-2">
+                    <button id="planificar-btn" class="btn btn-primary btn-lg" disabled><i class="fas fa-calculator me-2"></i>Calcular Ruta Óptima</button>
+                    <button id="limpiar-btn" class="btn btn-secondary"><i class="fas fa-eraser me-2"></i>Limpiar</button>
+                </div>
+            </div>
+
+            <div class="card bg-light mt-3" id="route-info" style="display: none;">
+                <div class="card-body">
+                    <h5 class="card-title text-success"><i class="fas fa-chart-line me-2"></i>Resumen de la Ruta</h5>
+                    <div class="row text-center">
+                        <div class="col-6 mb-2">
+                            <div class="fw-bold fs-5" id="distance">-</div>
+                            <div class="small text-muted">Distancia Total</div>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <div class="fw-bold fs-5" id="duration">-</div>
+                            <div class="small text-muted">Tiempo Estimado</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="fw-bold fs-5" id="stops">-</div>
+                            <div class="small text-muted">Paradas</div>
+                        </div>
+                         <div class="col-6">
+                            <div class="fw-bold fs-5" id="efficiency">-</div>
+                            <div class="small text-muted">Eficiencia</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor del Mapa (Derecha) -->
+    <div id="mapa"></div>
+    
+    <!-- Indicador de Carga -->
+    <div class="loading" id="loading">
+        <div class="spinner-border text-primary mb-2" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div>Calculando ruta óptima...</div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+
+
+{% block extra_js %}
+
+<!-- 1. Cargar la librería principal de Leaflet -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- 2. Cargar el plugin de rutas (que depende de la anterior) -->
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // --- 1. CARGA DE DATOS (Ficticios de Cartagena) ---
+        const sucursales = [
+            { nombre: "Sucursal Bocagrande", coords: [10.3997, -75.5539] },
+            { nombre: "Sucursal Centro Histórico", coords: [10.4245, -75.5509] },
+            { nombre: "Sucursal Manga", coords: [10.4085, -75.5398] },
+            { nombre: "Sucursal Pie de la Popa", coords: [10.4208, -75.5288] }
+        ];
+
+        const ventasPendientes = [
+            { id: 'V001', direccion: "Castillo San Felipe de Barajas", productos: "Cámara GoPro, Batería extra", coords: [10.4234, -75.5385], prioridad: "alta", peso: "1.5kg" },
+            { id: 'V002', direccion: "Muelle de la Bodeguita", productos: "Sombrero Vueltiao, Bloqueador solar", coords: [10.4217, -75.5492], prioridad: "media", peso: "1kg" },
+            { id: 'V003', direccion: "Hotel Caribe by Faranda Grand", productos: "Vestido de baño, Sandalias", coords: [10.3968, -75.5583], prioridad: "alta", peso: "2kg" },
+            { id: 'V004', direccion: "Centro Comercial Caribe Plaza", productos: "Jeans, Camiseta", coords: [10.4121, -75.5298], prioridad: "baja", peso: "3kg" },
+            { id: 'V005', direccion: "Convento de la Popa", productos: "Libro de historia, Souvenirs", coords: [10.4251, -75.5244], prioridad: "media", peso: "2.5kg" },
+            { id: 'V006', direccion: "Plaza de Santo Domingo", productos: "Artesanías, Café colombiano", coords: [10.4233, -75.5528], prioridad: "baja", peso: "4kg" },
+            { id: 'V007', direccion: "Aeropuerto Rafael Núñez", productos: "Maleta de viaje", coords: [10.4423, -75.5131], prioridad: "alta", peso: "8kg" },
+            { id: 'V008', direccion: "Playas de La Boquilla", productos: "Parasol, Toallas", coords: [10.4632, -75.4947], prioridad: "media", peso: "5kg" }
+        ];
+
+        // --- 2. INICIALIZACIÓN DEL MAPA Y VARIABLES ---
+        // Coordenada inicial (Cartagena de Indias) con un nivel de zoom adecuado para la ciudad.
+        const mapa = L.map('mapa').setView([10.41, -75.52], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(mapa);
+
+        let controlDeRuta = null;
+        let marcadoresSucursales = [];
+        let currentFilter = 'todas';
+
+        // --- 3. LÓGICA DE LA APLICACIÓN (Funciones) ---
+
+        function init() {
+            cargarSucursales();
+            cargarVentas();
+            setupEventListeners();
+            actualizarEstadisticas();
+            mostrarMarcadoresSucursales();
+            // Centrar el mapa en la primera sucursal si existe
+            if (sucursales.length > 0) {
+                mapa.setView(sucursales[0].coords, 12);
+            }
+        }
+
+        function cargarSucursales() {
+            const select = document.getElementById('sucursal-select');
+            select.innerHTML = '';
+            sucursales.forEach((suc, i) => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = suc.nombre;
+                select.appendChild(option);
+            });
+        }
+
+        function cargarVentas() {
+            const container = document.getElementById('ventas-container');
+            container.innerHTML = '';
+            
+            const ventasFiltradas = currentFilter === 'todas' 
+                ? ventasPendientes 
+                : ventasPendientes.filter(v => v.prioridad === currentFilter);
+
+            ventasFiltradas.forEach(venta => {
+                const item = document.createElement('div');
+                item.className = 'venta-item';
+                item.innerHTML = `
+                    <input type="checkbox" class="form-check-input" id="${venta.id}" data-venta='${JSON.stringify(venta)}'>
+                    <div class="venta-header">
+                        <span class="badge bg-primary">${venta.id}</span>
+                        <span class="priority ${venta.prioridad}">${venta.prioridad.toUpperCase()}</span>
+                    </div>
+                    <div class="fw-bold text-dark mt-1">${venta.direccion}</div>
+                    <div class="small text-muted">📦 ${venta.productos}</div>
+                    <div class="d-flex justify-content-between small text-muted mt-2">
+                        <span><strong>Peso:</strong> ${venta.peso}</span>
+                    </div>
+                `;
+                
+                item.addEventListener('click', (e) => {
+                    if (e.target.type !== 'checkbox') {
+                        const checkbox = item.querySelector('input');
+                        checkbox.checked = !checkbox.checked;
+                        item.classList.toggle('selected', checkbox.checked);
+                        actualizarEstadisticas();
+                    }
+                });
+
+                const checkbox = item.querySelector('input');
+                checkbox.addEventListener('change', () => {
+                    item.classList.toggle('selected', checkbox.checked);
+                    actualizarEstadisticas();
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        function mostrarMarcadoresSucursales() {
+            marcadoresSucursales.forEach(m => mapa.removeLayer(m));
+            marcadoresSucursales = [];
+
+            sucursales.forEach((suc, i) => {
+                const icon = L.divIcon({
+                    html: `<div style="background: var(--primary-color); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: var(--shadow-md);">${i + 1}</div>`,
+                    className: '',
+                    iconSize: [32, 32]
+                });
+                const marker = L.marker(suc.coords, { icon }).addTo(mapa);
+                marker.bindPopup(`<b>${suc.nombre}</b><br>Punto de partida`);
+                marcadoresSucursales.push(marker);
+            });
+        }
+
+        function setupEventListeners() {
+            document.getElementById('planificar-btn').addEventListener('click', planificarRuta);
+            document.getElementById('limpiar-btn').addEventListener('click', limpiarRuta);
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelector('.filter-btn.active').classList.remove('active');
+                    btn.classList.add('active');
+                    currentFilter = btn.dataset.filter;
+                    cargarVentas();
+                });
+            });
+        }
+
+        function actualizarEstadisticas() {
+            const seleccionadas = document.querySelectorAll('#ventas-container input:checked').length;
+            document.getElementById('total-ventas').textContent = ventasPendientes.length;
+            document.getElementById('total-seleccionadas').textContent = seleccionadas;
+            document.getElementById('planificar-btn').disabled = seleccionadas === 0;
+        }
+
+        function planificarRuta() {
+            const sucursalIndex = document.getElementById('sucursal-select').value;
+            const puntoPartida = sucursales[sucursalIndex].coords;
+            const ventasChecked = document.querySelectorAll('#ventas-container input:checked');
+
+            if (ventasChecked.length === 0) return;
+
+            document.getElementById('loading').classList.add('visible');
+
+            const waypoints = [L.latLng(puntoPartida)];
+            ventasChecked.forEach(v => {
+                const data = JSON.parse(v.dataset.venta);
+                waypoints.push(L.latLng(data.coords));
+            });
+
+            if (controlDeRuta) {
+                mapa.removeControl(controlDeRuta);
+            }
+
+            // Pequeño retraso para que el spinner sea visible y mejore la UX
+            setTimeout(() => {
+                controlDeRuta = L.Routing.control({
+                    waypoints: waypoints,
+                    routeWhileDragging: false,
+                    router: L.Routing.osrmv1({
+                        serviceUrl: 'https://router.project-osrm.org/route/v1'
+                    }),
+                    lineOptions: {
+                        styles: [{
+                            color: 'var(--primary-dark)',
+                            weight: 6,
+                            opacity: 0.8
+                        }]
+                    },
+                    createMarker: function(i, wp, n) {
+                        let label = '';
+                        let color = 'var(--primary-color)';
+                        
+                        if (i === 0) {
+                            label = `<i class="fas fa-store"></i> ${sucursales[sucursalIndex].nombre}`;
+                        } else {
+                            const ventaData = Array.from(ventasChecked)[i-1];
+                            const venta = JSON.parse(ventaData.dataset.venta);
+                            label = `${i}. ${venta.direccion}<br>📦 ${venta.productos}`;
+                            color = venta.prioridad === 'alta' ? 'var(--danger-color)' : venta.prioridad === 'media' ? 'var(--warning-color)' : 'var(--success-color)';
+                        }
+                        
+                        const iconHtml = i === 0 ? '<i class="fas fa-store text-white"></i>' : i;
+                        const icon = L.divIcon({
+                            html: `<div style="background: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: var(--shadow-md); font-size: 14px; color: white;">${iconHtml}</div>`,
+                            className: '',
+                            iconSize: [30, 30]
+                        });
+                        
+                        return L.marker(wp.latLng, { icon }).bindPopup(label);
+                    }
+                }).addTo(mapa);
+
+                controlDeRuta.on('routesfound', function(e) {
+                    const route = e.routes[0];
+                    const distanceKm = (route.summary.totalDistance / 1000).toFixed(2);
+                    const durationMin = Math.round(route.summary.totalTime / 60);
+                    const efficiency = Math.round((waypoints.length - 1) / (durationMin / 60 * 10) * 100);
+
+                    document.getElementById('distance').textContent = `${distanceKm} km`;
+                    document.getElementById('duration').textContent = `${durationMin} min`;
+                    document.getElementById('stops').textContent = waypoints.length - 1;
+                    document.getElementById('efficiency').textContent = `${efficiency}%`;
+                    document.getElementById('route-info').style.display = 'block';
+                    document.getElementById('loading').classList.remove('visible');
+                });
+            }, 300);
+        }
+
+        function limpiarRuta() {
+            if (controlDeRuta) {
+                mapa.removeControl(controlDeRuta);
+                controlDeRuta = null;
+            }
+            document.querySelectorAll('#ventas-container input:checked').forEach(c => {
+                c.checked = false;
+                c.closest('.venta-item').classList.remove('selected');
+            });
+            document.getElementById('route-info').style.display = 'none';
+            actualizarEstadisticas();
+            if (sucursales.length > 0) {
+                 mapa.setView(sucursales[0].coords, 12);
+            }
+        }
+
+        // --- 4. INICIO DE LA EJECUCIÓN ---
+        init();
+
+    });
+</script>
+{% endblock %}

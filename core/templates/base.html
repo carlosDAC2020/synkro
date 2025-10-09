@@ -8,8 +8,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <!-- Otros links de CSS -->
+    {% block extra_css %}{% endblock %}
     <style>
         :root {
             --primary-color: #6366f1;
@@ -380,13 +380,13 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="{% url 'nueva_venta' %}">
-                    <i class="fas fa-plus-circle"></i>Nueva Venta
+                <a class="nav-link {% if 'domicilio' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'domicilios_home' %}">
+                    <i class="fas fa-motorcycle"></i>Domicilios
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'domicilio' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'domicilios_home' %}">
-                    <i class="fas fa-motorcycle"></i>Domicilios
+                <a class="nav-link" href="{% url 'nueva_venta' %}">
+                    <i class="fas fa-plus-circle"></i>Nueva Venta
                 </a>
             </li>
             <hr>

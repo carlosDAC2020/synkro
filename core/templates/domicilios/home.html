@@ -1,288 +1,502 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Simulador de Domicilios - Synkro{% endblock %}
+{% block title %}Planificador de Domicilios - Synkro{% endblock %}
 
-{% block content %}
-<div class='page-header'>
-    <h1 class='page-title'>
-        <i class='fas fa-motorcycle me-3'></i>Simulador de Domicilios
-    </h1>
-    <p class='page-subtitle'>Demostración interactiva del sistema de entregas</p>
-</div>
 
-<div class='alert alert-info mb-4'>
-    <i class='fas fa-info-circle me-2'></i>
-    <strong>Modo Demo:</strong> Este es un simulador con datos ficticios para visualizar cómo funcionará el módulo de domicilios.
-</div>
-
-<div class='row'>
-    <!-- Panel de Control -->
-    <div class='col-lg-4 mb-4'>
-        <div class='card shadow-sm'>
-            <div class='card-header bg-primary text-white'>
-                <h6 class='mb-0'><i class='fas fa-cog me-2'></i>Panel de Control</h6>
-            </div>
-            <div class='card-body'>
-                <!-- Selección de Sucursal -->
-                <div class='mb-3'>
-                    <label class='form-label'><i class='fas fa-store me-2'></i>Sucursal de Origen</label>
-                    <select id='sucursalSelect' class='form-select'>
-                        <option value='0'>Sucursal Centro (Principal)</option>
-                        <option value='1'>Sucursal Norte</option>
-                        <option value='2'>Sucursal Sur</option>
-                    </select>
-                </div>
-
-                <!-- Ventas Pendientes -->
-                <div class='mb-3'>
-                    <div id='ventasList' class='list-group' style='max-height: 300px; overflow-y: auto;'>
-                        <!-- Se llenará dinámicamente -->
-                    </div>
-                </div>
-
-                <div class="mt-4 pt-3 border-top">
-                    <a href="{% url 'planificar_rutas' %}" class="btn btn-primary btn-lg w-100 mb-2">
-                        <i class="fas fa-route me-2"></i>Planificar Rutas de Entrega
-                    </a>
-                    <a href="{% url 'listar_rutas' %}" class="btn btn-success btn-lg w-100 mb-2">
-                        <i class="fas fa-list me-2"></i>Ver Rutas Planificadas
-                    </a>
-                    <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-lg w-100">
-                        <i class="fas fa-arrow-left me-2"></i>Volver al Dashboard
-                    </a>
-                </div>
-        </div>
-
-        <!-- Estadísticas -->
-        <div class='card shadow-sm mt-3'>
-            <div class='card-header'>
-                <h6 class='mb-0'><i class='fas fa-chart-bar me-2'></i>Estadísticas de Ruta</h6>
-            </div>
-            <div class='card-body'>
-                <div class='d-flex justify-content-between mb-2'>
-                    <span>Distancia Total:</span>
-                    <strong id='distanciaTotal'>0 km</strong>
-                </div>
-                <div class='d-flex justify-content-between mb-2'>
-                    <span>Tiempo Estimado:</span>
-                    <strong id='tiempoEstimado'>0 min</strong>
-                </div>
-                <div class='d-flex justify-content-between'>
-                    <span>Entregas:</span>
-                    <strong id='numEntregas'>0</strong>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Mapa Interactivo -->
-    <div class='col-lg-8 mb-4'>
-        <div class='card shadow-sm'>
-            <div class='card-header'>
-                <h6 class='mb-0'><i class='fas fa-map me-2'></i>Mapa de Entregas</h6>
-            </div>
-            <div class='card-body p-0'>
-                <div id='map' style='height: 600px;'></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Historial de Rutas -->
-<div class='row'>
-    <div class='col-12'>
-        <div class='card shadow-sm'>
-            <div class='card-header'>
-                <h6 class='mb-0'><i class='fas fa-history me-2'></i>Historial de Rutas (Simulado)</h6>
-            </div>
-            <div class='card-body'>
-                <div class='table-responsive'>
-                    <table class='table table-hover'>
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Repartidor</th>
-                                <th>Sucursal</th>
-                                <th>Entregas</th>
-                                <th>Distancia</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody id='historialTable'>
-                            <!-- Se llenará con datos ficticios -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% block extra_css %}
+<!-- Estilos de Leaflet (cargados en el head) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-// Datos ficticios
-const sucursales = [
-    { id: 0, nombre: 'Sucursal Centro', lat: 10.9685, lng: -74.7813, color: '#3498db' },
-    { id: 1, nombre: 'Sucursal Norte', lat: 11.0185, lng: -74.8013, color: '#e74c3c' },
-    { id: 2, nombre: 'Sucursal Sur', lat: 10.9185, lng: -74.7613, color: '#2ecc71' }
-];
+{% block content %}
 
-const ventasFicticias = [
-    { id: 1, cliente: 'Juan Pérez', direccion: 'Calle 72 #45-23', lat: 10.9785, lng: -74.7913, monto: 150000 },
-    { id: 2, cliente: 'María García', direccion: 'Carrera 50 #80-15', lat: 10.9885, lng: -74.8013, monto: 85000 },
-    { id: 3, cliente: 'Carlos López', direccion: 'Calle 85 #52-30', lat: 10.9985, lng: -74.7713, monto: 220000 },
-    { id: 4, cliente: 'Ana Martínez', direccion: 'Carrera 43 #70-10', lat: 10.9585, lng: -74.7813, monto: 95000 },
-    { id: 5, cliente: 'Pedro Rodríguez', direccion: 'Calle 76 #48-20', lat: 10.9685, lng: -74.7913, monto: 175000 }
-];
+<!-- CSS Específico para esta página -->
+<style>
+    /* Estilos del layout principal (sin cambios) */
+    .main-content { padding: 0 !important; height: 100vh; overflow: hidden; }
+    .main-content > div { height: 100%; }
+    .simulador-container { height: 100%; display: flex; overflow: hidden; }
+    #panel-control { width: 450px; background: var(--white-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; z-index: 100; }
+    .panel-header { padding: 24px; border-bottom: 1px solid var(--border-color); }
+    .panel-header h4 { color: var(--primary-color); font-weight: 600; font-size: 1.25rem; }
+    .panel-content { padding: 24px; overflow-y: auto; flex-grow: 1; }
+    #mapa { flex-grow: 1; height: 100%; }
+    #ventas-container { max-height: 450px; overflow-y: auto; padding-right: 10px; }
+    .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px 30px; border-radius: 10px; box-shadow: var(--shadow-lg); display: none; z-index: 2000; text-align: center; }
+    .loading.visible { display: block; }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--primary-color); }
 
-const historialFicticio = [
-    { fecha: '2025-10-04', repartidor: 'Luis Gómez', sucursal: 'Centro', entregas: 8, distancia: 15.5, estado: 'Completada' },
-    { fecha: '2025-10-04', repartidor: 'Ana Silva', sucursal: 'Norte', entregas: 6, distancia: 12.3, estado: 'Completada' },
-    { fecha: '2025-10-03', repartidor: 'Carlos Ruiz', sucursal: 'Sur', entregas: 10, distancia: 18.7, estado: 'Completada' },
-    { fecha: '2025-10-03', repartidor: 'María Torres', sucursal: 'Centro', entregas: 7, distancia: 14.2, estado: 'Completada' },
-    { fecha: '2025-10-02', repartidor: 'Luis Gómez', sucursal: 'Norte', entregas: 9, distancia: 16.8, estado: 'Completada' }
-];
+    /* --- NUEVOS ESTILOS y MODIFICACIONES para la interactividad --- */
+    .venta-item {
+        background: var(--white-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 12px;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+    .venta-item.selected {
+        border-color: var(--primary-dark);
+        background-color: #eef2ff;
+        box-shadow: var(--shadow-md);
+    }
+    .venta-item.locating {
+        border-color: var(--success-color);
+        background-color: #f0fdf4;
+    }
+    #mapa.crosshair-cursor { cursor: crosshair !important; }
 
-let map, sucursalActual = 0, ventasSeleccionadas = [], rutaActual = null;
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Inicializar mapa
-    map = L.map('map').setView([10.9685, -74.7813], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
-    // Cargar datos iniciales
-    cargarVentas();
-    cargarHistorial();
-    mostrarSucursalEnMapa();
-
-    // Event listeners
-    document.getElementById('sucursalSelect').addEventListener('change', function() {
-        sucursalActual = parseInt(this.value);
-        mostrarSucursalEnMapa();
-    });
-
-    document.getElementById('generarRutaBtn').addEventListener('click', generarRuta);
-    document.getElementById('simularEntregaBtn').addEventListener('click', simularEntrega);
-});
-
-function cargarVentas() {
-    const ventasList = document.getElementById('ventasList');
-    ventasList.innerHTML = ventasFicticias.map(venta => 
-        <div class='list-group-item'>
-            <div class='form-check'>
-                <input class='form-check-input' type='checkbox' value='' id='venta'>
-                <label class='form-check-label' for='venta'>
-                    <strong></strong><br>
-                    <small class='text-muted'></small><br>
-                    <span class='badge bg-success'>{venta.monto.toLocaleString()}</span>
-                </label>
-            </div>
-        </div>
-    ).join('');
-}
-
-function cargarHistorial() {
-    const historialTable = document.getElementById('historialTable');
-    historialTable.innerHTML = historialFicticio.map(ruta => 
-        <tr>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td><span class='badge bg-primary'></span></td>
-            <td> km</td>
-            <td><span class='badge bg-success'></span></td>
-        </tr>
-    ).join('');
-}
-
-function mostrarSucursalEnMapa() {
-    map.eachLayer(layer => {
-        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-            map.removeLayer(layer);
-        }
-    });
-
-    const sucursal = sucursales[sucursalActual];
-    const marker = L.marker([sucursal.lat, sucursal.lng], {
-        icon: L.divIcon({
-            className: 'custom-div-icon',
-            html: <div style='background-color: ; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);'></div>,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
-        })
-    }).addTo(map);
-
-    marker.bindPopup(<b></b><br>Punto de Origen).openPopup();
-    map.setView([sucursal.lat, sucursal.lng], 13);
-}
-
-function generarRuta() {
-    const checkboxes = document.querySelectorAll('#ventasList input[type=checkbox]:checked');
-    ventasSeleccionadas = Array.from(checkboxes).map(cb => parseInt(cb.value));
-
-    if (ventasSeleccionadas.length === 0) {
-        alert('Selecciona al menos una venta para generar la ruta');
-        return;
+    .venta-item-body {
+        padding-top: 10px;
+    }
+    .venta-info-basica {
+        font-size: 0.8rem;
+        color: var(--light-text);
+    }
+    .venta-info-basica strong {
+        color: var(--dark-text);
+    }
+    .form-group {
+        margin-top: 12px;
+    }
+    .venta-item label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: var(--primary-color);
+    }
+    .ubicacion-feedback {
+        font-size: 0.75rem;
+        color: var(--success-color);
+        font-weight: 500;
+        margin-top: 5px;
+        display: none;
+    }
+    .ubicacion-feedback.visible {
+        display: block;
     }
 
-    // Limpiar mapa
-    map.eachLayer(layer => {
-        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-            map.removeLayer(layer);
-        }
-    });
-
-    const sucursal = sucursales[sucursalActual];
-    const puntos = [sucursal];
-    
-    // Agregar ventas seleccionadas
-    ventasSeleccionadas.forEach(id => {
-        const venta = ventasFicticias.find(v => v.id === id);
-        if (venta) puntos.push(venta);
-    });
-
-    // Dibujar marcadores
-    L.marker([sucursal.lat, sucursal.lng], {
-        icon: L.divIcon({
-            className: 'custom-div-icon',
-            html: <div style='background-color: ; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white;'></div>,
-            iconSize: [30, 30]
-        })
-    }).addTo(map).bindPopup(<b></b>);
-
-    ventasSeleccionadas.forEach((id, index) => {
-        const venta = ventasFicticias.find(v => v.id === id);
-        L.marker([venta.lat, venta.lng]).addTo(map)
-            .bindPopup(<b>Parada </b><br><br>);
-    });
-
-    // Dibujar ruta
-    const coords = puntos.map(p => [p.lat, p.lng]);
-    rutaActual = L.polyline(coords, { color: '#e74c3c', weight: 4 }).addTo(map);
-    map.fitBounds(rutaActual.getBounds(), { padding: [50, 50] });
-
-    // Actualizar estadísticas
-    const distancia = (Math.random() * 10 + 5).toFixed(1);
-    const tiempo = Math.round(distancia * 4);
-    document.getElementById('distanciaTotal').textContent = ${distancia} km;
-    document.getElementById('tiempoEstimado').textContent = ${tiempo} min;
-    document.getElementById('numEntregas').textContent = ventasSeleccionadas.length;
-
-    document.getElementById('simularEntregaBtn').disabled = false;
-}
-
-function simularEntrega() {
-    alert('🚀 Simulación iniciada!\n\nEn la versión completa, aquí verás:\n- Animación del repartidor en el mapa\n- Actualización en tiempo real\n- Notificaciones de entregas\n- Tracking GPS');
-}
-</script>
-
-<style>
-.custom-div-icon {
-    background: none;
-    border: none;
-}
 </style>
+
+<!-- Aquí comienza la estructura del simulador -->
+<div class="simulador-container">
+    
+    <!-- Panel de Control (Izquierda) -->
+    <div id="panel-control">
+        <div class="panel-header">
+            <h4><i class="fas fa-edit me-2"></i>Planificador de Domicilios</h4>
+            <p class="text-muted mb-0 small">Asigne prioridad y ubicación a las ventas</p>
+        </div>
+
+        <div class="panel-content">
+            <!-- Sección 1 y Estadísticas (sin cambios) -->
+            <div class="mb-4">
+                <label for="sucursal-select" class="form-label fw-bold"><span class="badge bg-primary me-1">1</span> Sucursal de Salida</label>
+                <select id="sucursal-select" class="form-select"></select>
+                <div class="row mt-3 g-2">
+                    <div class="col">
+                        <div class="stats-card p-3">
+                            <div class="stats-number fs-4" id="total-ventas">0</div>
+                            <div class="stats-label fs-sm">Pendientes</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="stats-card p-3">
+                            <div class="stats-number fs-4" id="total-seleccionadas">0</div>
+                            <div class="stats-label fs-sm">Seleccionadas</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sección 2: Ventas para enriquecer -->
+            <div class="mb-4">
+                <label class="form-label fw-bold"><span class="badge bg-primary me-1">2</span> Ventas a Planificar</label>
+                <div id="ventas-container">
+                    <!-- Las ventas interactivas se cargarán aquí -->
+                </div>
+            </div>
+
+            <!-- Sección 3: Acciones (sin cambios) -->
+            <div class="mb-4">
+                <label class="form-label fw-bold"><span class="badge bg-primary me-1">3</span> Acciones</label>
+                <div class="d-grid gap-2">
+                    <button id="planificar-btn" class="btn btn-primary btn-lg" disabled><i class="fas fa-calculator me-2"></i>Calcular Ruta Óptima</button>
+                    <button id="limpiar-btn" class="btn btn-secondary"><i class="fas fa-eraser me-2"></i>Limpiar</button>
+                </div>
+            </div>
+
+            <!-- Resumen de Ruta (sin cambios) -->
+            <div class="card bg-light mt-3" id="route-info" style="display: none;">
+                <!-- ... -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor del Mapa (Derecha) -->
+    <div id="mapa"></div>
+    
+    <!-- Indicador de Carga (sin cambios) -->
+    <div class="loading" id="loading">
+        <!-- ... -->
+    </div>
+
+</div>
+
+{% endblock %}
+
+
+
+{% block extra_js %}
+<!-- Librerías de Leaflet -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+<!-- Lógica de la aplicación -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+        
+        // --- 1. DATOS INICIALES ---
+        const sucursales = [
+            { nombre: "Sucursal Bocagrande", coords: [10.3997, -75.5539] },
+            { nombre: "Sucursal Centro Histórico", coords: [10.4245, -75.5509] },
+            { nombre: "Sucursal Manga", coords: [10.4085, -75.5398] }
+        ];
+    
+        let ventasPendientes = [
+            { id: 'V001', cliente: "Carlos Gomez", productos: "Cámara GoPro, Batería extra", monto: "850.000 COP", coords: null, prioridad: null },
+            { id: 'V002', cliente: "Ana Perez", productos: "Sombrero Vueltiao, Bloqueador", monto: "120.000 COP", coords: null, prioridad: null },
+            { id: 'V003', cliente: "Luis Fernandez", productos: "Vestido de baño, Sandalias", monto: "250.000 COP", coords: null, prioridad: null },
+            { id: 'V004', cliente: "Sofia Castro", productos: "Jeans, Camiseta", monto: "310.000 COP", coords: null, prioridad: null },
+            { id: 'V005', cliente: "Jorge Diaz", productos: "Libro de historia, Souvenirs", monto: "95.000 COP", coords: null, prioridad: null }
+        ];
+    
+        // --- 2. INICIALIZACIÓN DEL MAPA Y VARIABLES ---
+        const mapa = L.map('mapa').setView([10.41, -75.52], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(mapa);
+        
+        let controlDeRuta = null;
+        let marcadoresSucursales = [];
+        let ventaActivaParaUbicar = null;
+    
+        // --- 3. LÓGICA DE LA APLICACIÓN ---
+    
+        function init() {
+            cargarSucursales();
+            renderizarVentas();
+            setupEventListeners();
+            actualizarEstadisticas();
+            mostrarMarcadoresSucursales();
+        }
+    
+        function cargarSucursales() {
+            const select = document.getElementById('sucursal-select');
+            select.innerHTML = '';
+            sucursales.forEach((suc, i) => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = suc.nombre;
+                select.appendChild(option);
+            });
+        }
+    
+        function renderizarVentas() {
+            const container = document.getElementById('ventas-container');
+            container.innerHTML = '';
+            
+            ventasPendientes.forEach(venta => {
+                const item = document.createElement('div');
+                item.className = 'venta-item';
+                item.dataset.ventaId = venta.id;
+    
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="badge bg-primary">${venta.id}</span>
+                            <div class="venta-info-basica mt-2">
+                                <div><strong>Cliente:</strong> ${venta.cliente}</div>
+                                <div><strong>Productos:</strong> ${venta.productos}</div>
+                                <div><strong>Monto:</strong> ${venta.monto}</div>
+                            </div>
+                        </div>
+                        <input type="checkbox" class="form-check-input" disabled>
+                    </div>
+                    <div class="venta-item-body">
+                        <div class="row gx-2">
+                            <div class="col-6">
+                                <div class="form-group">
+                                    <label for="prioridad-${venta.id}">Prioridad</label>
+                                    <select class="form-select form-select-sm" id="prioridad-${venta.id}">
+                                        <option value="">Seleccione...</option>
+                                        <option value="alta" ${venta.prioridad === 'alta' ? 'selected' : ''}>Alta</option>
+                                        <option value="media" ${venta.prioridad === 'media' ? 'selected' : ''}>Media</option>
+                                        <option value="baja" ${venta.prioridad === 'baja' ? 'selected' : ''}>Baja</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-group">
+                                    <label>Ubicación</label>
+                                    <button class="btn btn-sm btn-outline-success w-100 btn-ubicar">
+                                        <i class="fas fa-map-marker-alt me-1"></i> Ubicar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                             <label for="direccion-${venta.id}">Dirección o Coordenadas</label>
+                             <div class="input-group">
+                                <input type="text" class="form-control form-control-sm" id="direccion-${venta.id}" placeholder="Ej: Bocagrande, Carrera 1...">
+                                <button class="btn btn-sm btn-outline-primary btn-buscar-dir" title="Buscar dirección">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                             </div>
+                             <div class="ubicacion-feedback" id="feedback-${venta.id}">
+                                 <i class="fas fa-check-circle"></i> Ubicación asignada.
+                             </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(item);
+    
+                item.querySelector(`#prioridad-${venta.id}`).addEventListener('change', (e) => {
+                    const ventaIndex = ventasPendientes.findIndex(v => v.id === venta.id);
+                    ventasPendientes[ventaIndex].prioridad = e.target.value;
+                    validarVenta(item);
+                });
+                
+                item.querySelector('.btn-ubicar').addEventListener('click', () => {
+                    activarModoUbicacion(venta.id, item);
+                });
+    
+                item.querySelector('.btn-buscar-dir').addEventListener('click', () => {
+                    buscarDireccion(venta.id, item);
+                });
+    
+                item.querySelector('.form-check-input').addEventListener('change', actualizarEstadisticas);
+            });
+        }
+    
+        function activarModoUbicacion(ventaId, itemElement) {
+            ventaActivaParaUbicar = ventaId;
+            document.querySelectorAll('.venta-item').forEach(el => el.classList.remove('locating'));
+            itemElement.classList.add('locating');
+            document.getElementById('mapa').classList.add('crosshair-cursor');
+            // Usamos un toast o una alerta más sutil en el futuro, por ahora alert está bien.
+            alert('Haz clic en el mapa para asignar la ubicación de la entrega.');
+        }
+    
+        mapa.on('click', function(e) {
+            if (!ventaActivaParaUbicar) return;
+    
+            const coords = [e.latlng.lat, e.latlng.lng];
+            const ventaIndex = ventasPendientes.findIndex(v => v.id === ventaActivaParaUbicar);
+            const itemElement = document.querySelector(`.venta-item[data-venta-id="${ventaActivaParaUbicar}"]`);
+    
+            ventasPendientes[ventaIndex].coords = coords;
+    
+            itemElement.querySelector(`#direccion-${ventaActivaParaUbicar}`).value = `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
+            itemElement.querySelector(`#feedback-${ventaActivaParaUbicar}`).classList.add('visible');
+            
+            validarVenta(itemElement);
+            
+            ventaActivaParaUbicar = null;
+            document.querySelectorAll('.venta-item').forEach(el => el.classList.remove('locating'));
+            document.getElementById('mapa').classList.remove('crosshair-cursor');
+        });
+    
+        async function buscarDireccion(ventaId, itemElement) {
+            const inputDir = itemElement.querySelector(`#direccion-${ventaId}`);
+            const direccion = inputDir.value.trim();
+            if (!direccion) {
+                alert('Por favor, ingrese una dirección para buscar.');
+                return;
+            }
+    
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(direccion)}, Cartagena, Colombia`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    const bestMatch = data[0];
+                    const coords = [parseFloat(bestMatch.lat), parseFloat(bestMatch.lon)];
+                    
+                    const ventaIndex = ventasPendientes.findIndex(v => v.id === ventaId);
+                    ventasPendientes[ventaIndex].coords = coords;
+                    
+                    inputDir.value = bestMatch.display_name;
+                    itemElement.querySelector(`#feedback-${ventaId}`).classList.add('visible');
+                    
+                    validarVenta(itemElement);
+                    mapa.setView(coords, 16);
+                    L.marker(coords).addTo(mapa).bindPopup(bestMatch.display_name).openPopup();
+    
+                } else {
+                    alert('No se encontraron resultados para la dirección ingresada.');
+                }
+            } catch (error) {
+                console.error('Error de geocodificación:', error);
+                alert('Ocurrió un error al buscar la dirección.');
+            }
+        }
+    
+        function validarVenta(itemElement) {
+            const ventaId = itemElement.dataset.ventaId;
+            const venta = ventasPendientes.find(v => v.id === ventaId);
+            const checkbox = itemElement.querySelector('.form-check-input');
+    
+            if (venta.prioridad && venta.prioridad !== "" && venta.coords) {
+                checkbox.disabled = false;
+            } else {
+                checkbox.disabled = true;
+                checkbox.checked = false;
+            }
+            actualizarEstadisticas();
+        }
+    
+        function actualizarEstadisticas() {
+            const seleccionadas = document.querySelectorAll('.venta-item .form-check-input:checked').length;
+            document.getElementById('total-ventas').textContent = ventasPendientes.length;
+            document.getElementById('total-seleccionadas').textContent = seleccionadas;
+            document.getElementById('planificar-btn').disabled = seleccionadas === 0;
+        }
+    
+        function mostrarMarcadoresSucursales() {
+                marcadoresSucursales.forEach(m => mapa.removeLayer(m));
+                marcadoresSucursales = [];
+    
+                sucursales.forEach((suc, i) => {
+                    const icon = L.divIcon({
+                        html: `<div style="background: var(--primary-color); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: var(--shadow-md);">${i + 1}</div>`,
+                        className: '',
+                        iconSize: [32, 32]
+                    });
+                    const marker = L.marker(suc.coords, { icon }).addTo(mapa);
+                    marker.bindPopup(`<b>${suc.nombre}</b><br>Punto de partida`);
+                    marcadoresSucursales.push(marker);
+                });
+        }
+    
+        function planificarRuta() {
+            const sucursalIndex = document.getElementById('sucursal-select').value;
+            const puntoPartida = sucursales[sucursalIndex].coords;
+    
+            const ventasParaRuta = ventasPendientes.filter(venta => {
+                const checkbox = document.querySelector(`.venta-item[data-venta-id="${venta.id}"] .form-check-input`);
+                return checkbox && checkbox.checked && venta.coords;
+            });
+    
+            if (ventasParaRuta.length === 0) {
+                alert("No hay entregas válidas seleccionadas para planificar.");
+                return;
+            }
+    
+            document.getElementById('loading').classList.add('visible');
+    
+            const waypoints = [L.latLng(puntoPartida)];
+            ventasParaRuta.forEach(v => {
+                waypoints.push(L.latLng(v.coords));
+            });
+    
+            if (controlDeRuta) {
+                mapa.removeControl(controlDeRuta);
+            }
+    
+            setTimeout(() => {
+                    controlDeRuta = L.Routing.control({
+                        waypoints: waypoints,
+                        routeWhileDragging: false,
+                        router: L.Routing.osrmv1({
+                            serviceUrl: 'https://router.project-osrm.org/route/v1'
+                        }),
+                        lineOptions: {
+                            styles: [{
+                                color: 'var(--primary-dark)',
+                                weight: 6,
+                                opacity: 0.8
+                            }]
+                        },
+                        // --- CORRECCIÓN IMPORTANTE AQUÍ ---
+                        // Se usa el array `ventasParaRuta` que contiene los datos correctos,
+                        // en lugar de la variable inexistente `ventasChecked`.
+                        createMarker: function(i, wp, n) {
+                            let label = '';
+                            let color = 'var(--primary-color)';
+                            
+                            if (i === 0) {
+                                label = `<i class="fas fa-store"></i> ${sucursales[sucursalIndex].nombre}`;
+                            } else {
+                                // Se obtiene la información de la venta correcta del array.
+                                const venta = ventasParaRuta[i - 1]; 
+                                label = `${i}. Cliente: ${venta.cliente}<br>📦 ${venta.productos}`;
+                                color = venta.prioridad === 'alta' ? 'var(--danger-color)' : venta.prioridad === 'media' ? 'var(--warning-color)' : 'var(--success-color)';
+                            }
+                            
+                            const iconHtml = i === 0 ? '<i class="fas fa-store text-white"></i>' : i;
+                            const icon = L.divIcon({
+                                html: `<div style="background: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: var(--shadow-md); font-size: 14px; color: white;">${iconHtml}</div>`,
+                                className: '',
+                                iconSize: [30, 30]
+                            });
+                            
+                            return L.marker(wp.latLng, { icon }).bindPopup(label);
+                        }
+                    }).addTo(mapa);
+    
+                    controlDeRuta.on('routesfound', function(e) {
+                        document.getElementById('loading').classList.remove('visible');
+                        const route = e.routes[0];
+                        if (!route) return;
+    
+                        const distanceKm = (route.summary.totalDistance / 1000).toFixed(2);
+                        const durationMin = Math.round(route.summary.totalTime / 60);
+                        const stops = waypoints.length - 1;
+                        // Evitar división por cero si la duración es 0
+                        const efficiency = durationMin > 0 ? Math.round((stops / (durationMin / 60)) * 10) : 100;
+    
+                        document.getElementById('distance').textContent = `${distanceKm} km`;
+                        document.getElementById('duration').textContent = `${durationMin} min`;
+                        document.getElementById('stops').textContent = stops;
+                        document.getElementById('efficiency').textContent = `${efficiency}%`;
+                        document.getElementById('route-info').style.display = 'block';
+                    });
+                    
+                    controlDeRuta.on('routingerror', function(e) {
+                        document.getElementById('loading').classList.remove('visible');
+                        alert("No se pudo calcular la ruta. Verifica que los puntos sean accesibles.");
+                        console.error("Error de ruteo:", e.error);
+                    });
+                }, 300);
+        }
+        
+        function limpiarRuta() {
+            if (controlDeRuta) {
+                mapa.removeControl(controlDeRuta);
+                controlDeRuta = null;
+            }
+            
+            // Simplemente recarga la página para resetear todo al estado inicial
+            location.reload();
+        }
+    
+        function setupEventListeners() {
+            document.getElementById('planificar-btn').addEventListener('click', planificarRuta);
+            document.getElementById('limpiar-btn').addEventListener('click', limpiarRuta);
+        }
+    
+        // --- 4. INICIO DE LA EJECUCIÓN ---
+        init();
+    
+    });
+</script>
 {% endblock %}
