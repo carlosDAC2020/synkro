@@ -129,6 +129,80 @@ class Venta(models.Model):
 
         super().save(*args, **kwargs)
         self._estado_anterior = self.estado
+    
+    @property
+    def permite_notas_entrega(self):
+        """
+        Indica si esta venta permite agregar notas de entrega.
+        Solo se permiten en estados específicos donde tiene sentido hacer entregas parciales.
+        """
+        return self.estado in ['PAGADA_PENDIENTE_ENTREGA', 'BORRADOR']
+    
+    @property
+    def tiene_notas_entrega(self):
+        """Indica si la venta tiene notas de entrega registradas"""
+        return self.notas_entrega.exists()
+    
+    def cantidad_entregada_producto(self, producto):
+        """
+        Retorna la cantidad total entregada de un producto específico
+        según las notas de entrega aplicadas.
+        """
+        from django.db.models import Sum
+        total = self.notas_entrega.filter(
+            descuento_inventario_aplicado=True,
+            detalles_entrega__producto=producto
+        ).aggregate(
+            total=Sum('detalles_entrega__cantidad_entregada')
+        )['total']
+        return total or 0
+    
+    def cantidad_pendiente_producto(self, producto):
+        """
+        Retorna la cantidad pendiente de entregar de un producto específico.
+        """
+        try:
+            detalle_venta = self.detalles.get(producto=producto)
+            cantidad_total = detalle_venta.cantidad
+            cantidad_entregada = self.cantidad_entregada_producto(producto)
+            return cantidad_total - cantidad_entregada
+        except VentaDetalle.DoesNotExist:
+            return 0
+    
+    @property
+    def resumen_entregas(self):
+        """
+        Retorna un resumen de entregas por producto.
+        Formato: lista de diccionarios con info de cada producto.
+        """
+        resumen = []
+        for detalle in self.detalles.all():
+            producto = detalle.producto
+            cantidad_total = detalle.cantidad
+            cantidad_entregada = self.cantidad_entregada_producto(producto)
+            cantidad_pendiente = cantidad_total - cantidad_entregada
+            
+            resumen.append({
+                'producto': producto,
+                'cantidad_total': cantidad_total,
+                'cantidad_entregada': cantidad_entregada,
+                'cantidad_pendiente': cantidad_pendiente,
+                'porcentaje_entregado': (cantidad_entregada / cantidad_total * 100) if cantidad_total > 0 else 0
+            })
+        
+        return resumen
+    
+    @property
+    def entrega_completa(self):
+        """Indica si todos los productos de la venta han sido entregados completamente"""
+        if not self.tiene_notas_entrega:
+            return False
+        
+        for item in self.resumen_entregas:
+            if item['cantidad_pendiente'] > 0:
+                return False
+        
+        return True
 
 
 class VentaDetalle(models.Model):
@@ -391,3 +465,147 @@ class DetalleRuta(models.Model):
     class Meta:
         verbose_name_plural = "Detalles de Ruta"
         ordering = ['orden_entrega']
+
+
+# === MÓDULO DE NOTAS DE ENTREGA ===
+
+class NotaEntregaVenta(models.Model):
+    """
+    Notas de entrega parcial para ventas.
+    Permite registrar entregas progresivas de mercancía y descontar inventario gradualmente.
+    """
+    venta = models.ForeignKey(Venta, related_name='notas_entrega', on_delete=models.CASCADE)
+    fecha_entrega = models.DateTimeField(auto_now_add=True)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.PROTECT,
+        help_text="Usuario que registró la entrega"
+    )
+    
+    # Información de la entrega
+    descripcion = models.TextField(
+        help_text="Descripción de la entrega (ej: 'Cliente recogió 5 unidades del producto X')"
+    )
+    observaciones = models.TextField(
+        blank=True,
+        help_text="Observaciones adicionales (ej: 'Cliente firmó conforme', 'Faltó entregar Y')"
+    )
+    
+    # Control
+    descuento_inventario_aplicado = models.BooleanField(
+        default=False,
+        help_text="Indica si ya se descontó el inventario por esta nota"
+    )
+    
+    class Meta:
+        verbose_name = "Nota de Entrega"
+        verbose_name_plural = "Notas de Entrega"
+        ordering = ['-fecha_entrega']
+    
+    def __str__(self):
+        return f"Nota #{self.id} - Venta #{self.venta.id} - {self.fecha_entrega.strftime('%d/%m/%Y %H:%M')}"
+    
+    def aplicar_descuento_inventario(self):
+        """
+        Aplica el descuento de inventario según los detalles de esta nota.
+        Solo se ejecuta si no se ha aplicado previamente.
+        """
+        if self.descuento_inventario_aplicado:
+            return False
+        
+        with transaction.atomic():
+            for detalle in self.detalles_entrega.all():
+                producto = detalle.producto
+                if producto.stock_actual < detalle.cantidad_entregada:
+                    raise ValidationError(
+                        f"No hay stock suficiente de {producto.nombre}. "
+                        f"Stock actual: {producto.stock_actual}, Solicitado: {detalle.cantidad_entregada}"
+                    )
+                producto.stock_actual -= detalle.cantidad_entregada
+                producto.save()
+            
+            self.descuento_inventario_aplicado = True
+            self.save()
+        
+        return True
+    
+    def revertir_descuento_inventario(self):
+        """
+        Revierte el descuento de inventario (devuelve el stock).
+        Útil si se cancela o corrige una nota de entrega.
+        """
+        if not self.descuento_inventario_aplicado:
+            return False
+        
+        with transaction.atomic():
+            for detalle in self.detalles_entrega.all():
+                producto = detalle.producto
+                producto.stock_actual += detalle.cantidad_entregada
+                producto.save()
+            
+            self.descuento_inventario_aplicado = False
+            self.save()
+        
+        return True
+
+
+class DetalleNotaEntrega(models.Model):
+    """
+    Detalle de productos entregados en una nota de entrega.
+    Especifica qué productos y en qué cantidades se entregaron.
+    """
+    nota_entrega = models.ForeignKey(
+        NotaEntregaVenta, 
+        related_name='detalles_entrega', 
+        on_delete=models.CASCADE
+    )
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
+    cantidad_entregada = models.PositiveIntegerField(
+        help_text="Cantidad entregada en esta nota"
+    )
+    
+    class Meta:
+        verbose_name = "Detalle de Nota de Entrega"
+        verbose_name_plural = "Detalles de Notas de Entrega"
+    
+    def __str__(self):
+        return f"{self.cantidad_entregada} x {self.producto.nombre}"
+    
+    def clean(self):
+        """Validación: la cantidad entregada no puede exceder lo pendiente"""
+        if not self.nota_entrega_id or not self.producto_id:
+            return
+        
+        venta = self.nota_entrega.venta
+        
+        # Buscar el detalle de venta correspondiente
+        try:
+            detalle_venta = venta.detalles.get(producto=self.producto)
+        except VentaDetalle.DoesNotExist:
+            raise ValidationError(
+                f"El producto {self.producto.nombre} no está en esta venta"
+            )
+        
+        # Calcular cuánto se ha entregado previamente
+        cantidad_ya_entregada = DetalleNotaEntrega.objects.filter(
+            nota_entrega__venta=venta,
+            producto=self.producto,
+            nota_entrega__descuento_inventario_aplicado=True
+        ).exclude(
+            id=self.id  # Excluir esta misma instancia si es una edición
+        ).aggregate(
+            total=models.Sum('cantidad_entregada')
+        )['total'] or 0
+        
+        cantidad_pendiente = detalle_venta.cantidad - cantidad_ya_entregada
+        
+        if self.cantidad_entregada > cantidad_pendiente:
+            raise ValidationError(
+                f"No puedes entregar {self.cantidad_entregada} unidades de {self.producto.nombre}. "
+                f"Cantidad pendiente: {cantidad_pendiente} (Total venta: {detalle_venta.cantidad}, "
+                f"Ya entregado: {cantidad_ya_entregada})"
+            )
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

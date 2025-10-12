@@ -141,6 +141,105 @@
             </div>
         </div>
         
+        <!-- Notas de Entrega -->
+        {% if venta.permite_notas_entrega or venta.tiene_notas_entrega %}
+        <div class="card mt-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-truck me-2"></i>Notas de Entrega</h6>
+                {% if venta.permite_notas_entrega %}
+                <a href="{% url 'nota_entrega_crear' venta.id %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus me-1"></i>Nueva Nota
+                </a>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if venta.tiene_notas_entrega %}
+                    <!-- Resumen de entregas -->
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th class="text-center">Total</th>
+                                    <th class="text-center">Entregado</th>
+                                    <th class="text-center">Pendiente</th>
+                                    <th class="text-center">Progreso</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in venta.resumen_entregas %}
+                                <tr>
+                                    <td>{{ item.producto.nombre }}</td>
+                                    <td class="text-center">{{ item.cantidad_total }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success">{{ item.cantidad_entregada }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if item.cantidad_pendiente > 0 %}
+                                            <span class="badge bg-warning">{{ item.cantidad_pendiente }}</span>
+                                        {% else %}
+                                            <span class="badge bg-success">✓</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar bg-success" role="progressbar" 
+                                                 style="width: {{ item.porcentaje_entregado }}%"
+                                                 aria-valuenow="{{ item.porcentaje_entregado }}" 
+                                                 aria-valuemin="0" aria-valuemax="100">
+                                                {{ item.porcentaje_entregado|floatformat:0 }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Listado de notas -->
+                    <h6 class="mb-2">Historial de Entregas</h6>
+                    {% for nota in venta.notas_entrega.all %}
+                    <div class="border rounded p-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>Nota #{{ nota.id }}</strong>
+                                <small class="text-muted ms-2">{{ nota.fecha_entrega|date:"d/m/Y H:i" }}</small>
+                                {% if nota.descuento_inventario_aplicado %}
+                                    <span class="badge bg-success ms-2">Inventario Aplicado</span>
+                                {% else %}
+                                    <span class="badge bg-warning ms-2">Pendiente Aplicar</span>
+                                {% endif %}
+                            </div>
+                            <a href="{% url 'nota_entrega_detail' nota.id %}" class="btn btn-sm btn-outline-primary">
+                                Ver Detalle
+                            </a>
+                        </div>
+                        <p class="mb-1 mt-2"><small>{{ nota.descripcion|truncatechars:100 }}</small></p>
+                        <small class="text-muted">Por: {{ nota.usuario.username }}</small>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="text-center mt-2">
+                        <a href="{% url 'nota_entrega_list' venta.id %}" class="btn btn-sm btn-outline-secondary">
+                            Ver Todas las Notas
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-clipboard-list fa-2x text-muted mb-2"></i>
+                        <p class="text-muted mb-2">No hay notas de entrega registradas</p>
+                        {% if venta.permite_notas_entrega %}
+                        <a href="{% url 'nota_entrega_crear' venta.id %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus me-1"></i>Crear Primera Nota
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
         <!-- Acciones adicionales -->
         <div class="card mt-3">
             <div class="card-header">

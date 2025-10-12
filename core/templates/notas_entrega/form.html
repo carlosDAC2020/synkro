@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Synkro{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detalle-form {
+        transition: all 0.3s ease;
+        background-color: #f8f9fa;
+    }
+    
+    .detalle-form:hover {
+        background-color: #e9ecef;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .detalle-form .btn-outline-danger {
+        transition: all 0.2s ease;
+    }
+    
+    .detalle-form .btn-outline-danger:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+    }
+    
+    .detalle-form .row {
+        align-items: flex-end;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-clipboard-list me-2"></i>{{ title }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'venta_detail' venta.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver a Venta
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Información de la venta -->
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-receipt me-2"></i>Información de la Venta</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Venta:</strong> #{{ venta.id }}</p>
+                <p><strong>Cliente:</strong> {{ venta.cliente.nombre|default:"Cliente General" }}</p>
+                <p><strong>Estado:</strong> 
+                    <span class="badge bg-info">{{ venta.get_estado_display }}</span>
+                </p>
+                <p><strong>Total:</strong> ${{ venta.monto_total|floatformat:2 }}</p>
+            </div>
+        </div>
+        
+        <!-- Resumen de entregas -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-box me-2"></i>Estado de Entregas</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-center">Total</th>
+                            <th class="text-center">Entregado</th>
+                            <th class="text-center">Pendiente</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in resumen_entregas %}
+                        <tr>
+                            <td><small>{{ item.producto.nombre|truncatechars:20 }}</small></td>
+                            <td class="text-center">{{ item.cantidad_total }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-success">{{ item.cantidad_entregada }}</span>
+                            </td>
+                            <td class="text-center">
+                                {% if item.cantidad_pendiente > 0 %}
+                                    <span class="badge bg-warning">{{ item.cantidad_pendiente }}</span>
+                                {% else %}
+                                    <span class="badge bg-success">✓</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Formulario de nota de entrega -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-edit me-2"></i>Datos de la Entrega</h6>
+            </div>
+            <div class="card-body">
+                <form method="post" id="nota-entrega-form">
+                    {% csrf_token %}
+                    
+                    <!-- Descripción -->
+                    <div class="mb-3">
+                        <label for="{{ form.descripcion.id_for_label }}" class="form-label">
+                            {{ form.descripcion.label }} <span class="text-danger">*</span>
+                        </label>
+                        {{ form.descripcion }}
+                        {% if form.descripcion.errors %}
+                            <div class="text-danger">{{ form.descripcion.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Describe qué se entregó en esta visita (ej: "Cliente recogió 5 unidades del producto X")
+                        </small>
+                    </div>
+                    
+                    <!-- Observaciones -->
+                    <div class="mb-3">
+                        <label for="{{ form.observaciones.id_for_label }}" class="form-label">
+                            {{ form.observaciones.label }}
+                        </label>
+                        {{ form.observaciones }}
+                        {% if form.observaciones.errors %}
+                            <div class="text-danger">{{ form.observaciones.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Observaciones adicionales (opcional)
+                        </small>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Productos entregados -->
+                    <h6 class="mb-3"><i class="fas fa-boxes me-2"></i>Productos Entregados</h6>
+                    
+                    {{ formset.management_form }}
+                    
+                    <div id="formset-container">
+                        {% for form_detalle in formset %}
+                        <div class="detalle-form border rounded p-3 mb-3">
+                            <div class="row align-items-end">
+                                <div class="col-md-6">
+                                    <label class="form-label">Producto <span class="text-danger">*</span></label>
+                                    {{ form_detalle.producto }}
+                                    {% if form_detalle.producto.errors %}
+                                        <div class="text-danger small">{{ form_detalle.producto.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Cantidad Entregada <span class="text-danger">*</span></label>
+                                    {{ form_detalle.cantidad_entregada }}
+                                    {% if form_detalle.cantidad_entregada.errors %}
+                                        <div class="text-danger small">{{ form_detalle.cantidad_entregada.errors }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-2">
+                                    {% if not forloop.first %}
+                                    <button type="button" class="btn btn-outline-danger btn-sm w-100" 
+                                            onclick="removeForm(this)" title="Eliminar producto">
+                                        <i class="fas fa-trash-alt me-1"></i>Eliminar
+                                    </button>
+                                    {% else %}
+                                    <div style="height: 38px;"></div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {{ form_detalle.id }}
+                            <input type="hidden" name="{{ form_detalle.DELETE.name }}" id="{{ form_detalle.DELETE.id_for_label }}">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="button" class="btn btn-outline-secondary btn-sm mb-3" onclick="addForm()">
+                        <i class="fas fa-plus me-1"></i>Agregar Producto
+                    </button>
+                    
+                    <hr>
+                    
+                    <!-- Opción de aplicar inventario -->
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="aplicar_inventario" value="true" id="aplicar_inventario" checked>
+                            <label class="form-check-label" for="aplicar_inventario">
+                                <strong>Aplicar descuento de inventario inmediatamente</strong>
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            Si marcas esta opción, el inventario se descontará automáticamente al crear la nota.
+                            Si no, podrás aplicarlo manualmente más tarde.
+                        </small>
+                    </div>
+                    
+                    <!-- Botones -->
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Guardar Nota de Entrega
+                        </button>
+                        <a href="{% url 'venta_detail' venta.id %}" class="btn btn-secondary">
+                            <i class="fas fa-times me-2"></i>Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Funciones para manejar el formset dinámico
+let formCount = {{ formset.total_form_count }};
+
+function addForm() {
+    const container = document.getElementById('formset-container');
+    const emptyForm = container.querySelector('.detalle-form').cloneNode(true);
+    
+    // Actualizar índices en el nuevo formulario
+    const formRegex = RegExp(`form-(\\d+)-`, 'g');
+    emptyForm.innerHTML = emptyForm.innerHTML.replace(formRegex, `form-${formCount}-`);
+    
+    // Limpiar valores
+    emptyForm.querySelectorAll('input:not([type="hidden"]), select').forEach(input => {
+        input.value = '';
+    });
+    
+    // Asegurar que el botón de eliminar esté presente en la columna correcta
+    const deleteCol = emptyForm.querySelector('.col-md-2');
+    if (deleteCol) {
+        deleteCol.innerHTML = `
+            <button type="button" class="btn btn-outline-danger btn-sm w-100" 
+                    onclick="removeForm(this)" title="Eliminar producto">
+                <i class="fas fa-trash-alt me-1"></i>Eliminar
+            </button>
+        `;
+    }
+    
+    container.appendChild(emptyForm);
+    formCount++;
+    
+    // Actualizar el contador de formularios
+    document.getElementById('id_detalles_entrega-TOTAL_FORMS').value = formCount;
+}
+
+function removeForm(button) {
+    const form = button.closest('.detalle-form');
+    const deleteInput = form.querySelector('input[name$="-DELETE"]');
+    
+    if (deleteInput) {
+        deleteInput.value = 'on';
+        form.style.display = 'none';
+    } else {
+        form.remove();
+        formCount--;
+        document.getElementById('id_detalles_entrega-TOTAL_FORMS').value = formCount;
+    }
+}
+</script>
+{% endblock %}

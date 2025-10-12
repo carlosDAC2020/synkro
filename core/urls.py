@@ -29,6 +29,13 @@ urlpatterns = [
     path('ventas/nueva/', views.nueva_venta, name='nueva_venta'),
     path('ventas/<int:pk>/', views.venta_detail, name='venta_detail'),
     
+    # Notas de Entrega
+    path('ventas/<int:venta_id>/notas-entrega/crear/', views.nota_entrega_crear, name='nota_entrega_crear'),
+    path('ventas/<int:venta_id>/notas-entrega/', views.nota_entrega_list, name='nota_entrega_list'),
+    path('notas-entrega/<int:pk>/', views.nota_entrega_detail, name='nota_entrega_detail'),
+    path('notas-entrega/<int:pk>/aplicar-inventario/', views.nota_entrega_aplicar_inventario, name='nota_entrega_aplicar_inventario'),
+    path('notas-entrega/<int:pk>/revertir-inventario/', views.nota_entrega_revertir_inventario, name='nota_entrega_revertir_inventario'),
+    
     # Proveedores
     path('proveedores/', views.proveedor_list, name='proveedor_list'),
     path('proveedores/agregar/', views.proveedor_add, name='proveedor_add'),

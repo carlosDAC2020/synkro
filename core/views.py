@@ -8,8 +8,8 @@ from django.http import JsonResponse
 from django.db import transaction
 from django.db.models import Q, F
 
-from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor
-from .forms import ClienteForm, ProductoForm, VentaForm, VentaDetalleFormSet, ProveedorForm, PedidoProveedorForm, PedidoDetalleFormSet, PagoProveedorForm
+from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, NotaEntregaVenta, DetalleNotaEntrega
+from .forms import ClienteForm, ProductoForm, VentaForm, VentaDetalleFormSet, ProveedorForm, PedidoProveedorForm, PedidoDetalleFormSet, PagoProveedorForm, NotaEntregaVentaForm, DetalleNotaEntregaFormSet
 
 # Dashboard
 @login_required
@@ -578,6 +578,123 @@ def pedido_cambiar_estado(request, pk):
             return redirect('pedido_detail', pk=pedido.id)
     
     return redirect('pedido_detail', pk=pedido.id)
+
+# === NOTAS DE ENTREGA ===
+
+@login_required
+def nota_entrega_crear(request, venta_id):
+    """Crear una nueva nota de entrega para una venta"""
+    venta = get_object_or_404(Venta, pk=venta_id)
+    
+    # Verificar que la venta permita notas de entrega
+    if not venta.permite_notas_entrega:
+        messages.error(request, f'No se pueden agregar notas de entrega para ventas en estado "{venta.get_estado_display()}"')
+        return redirect('venta_detail', pk=venta.id)
+    
+    if request.method == 'POST':
+        form = NotaEntregaVentaForm(request.POST)
+        formset = DetalleNotaEntregaFormSet(request.POST)
+        
+        if form.is_valid() and formset.is_valid():
+            try:
+                with transaction.atomic():
+                    # Crear la nota de entrega
+                    nota = form.save(commit=False)
+                    nota.venta = venta
+                    nota.usuario = request.user
+                    nota.save()
+                    
+                    # Guardar los detalles
+                    formset.instance = nota
+                    detalles = formset.save()
+                    
+                    # Aplicar descuento de inventario si se solicitó
+                    if request.POST.get('aplicar_inventario') == 'true':
+                        nota.aplicar_descuento_inventario()
+                        messages.success(request, f'Nota de entrega #{nota.id} creada y descuento de inventario aplicado.')
+                    else:
+                        messages.success(request, f'Nota de entrega #{nota.id} creada. Recuerda aplicar el descuento de inventario cuando corresponda.')
+                    
+                    return redirect('venta_detail', pk=venta.id)
+            except Exception as e:
+                messages.error(request, f'Error al crear la nota de entrega: {str(e)}')
+    else:
+        form = NotaEntregaVentaForm()
+        formset = DetalleNotaEntregaFormSet()
+        
+        # Configurar el formset para mostrar solo productos de esta venta
+        for form_detalle in formset:
+            productos_venta = venta.detalles.values_list('producto', flat=True)
+            form_detalle.fields['producto'].queryset = Producto.objects.filter(id__in=productos_venta)
+    
+    return render(request, 'notas_entrega/form.html', {
+        'form': form,
+        'formset': formset,
+        'venta': venta,
+        'resumen_entregas': venta.resumen_entregas,
+        'title': f'Nueva Nota de Entrega - Venta #{venta.id}'
+    })
+
+
+@login_required
+def nota_entrega_list(request, venta_id):
+    """Listar todas las notas de entrega de una venta"""
+    venta = get_object_or_404(Venta, pk=venta_id)
+    notas = venta.notas_entrega.select_related('usuario').prefetch_related('detalles_entrega__producto').order_by('-fecha_entrega')
+    
+    return render(request, 'notas_entrega/list.html', {
+        'venta': venta,
+        'notas': notas,
+        'resumen_entregas': venta.resumen_entregas
+    })
+
+
+@login_required
+def nota_entrega_detail(request, pk):
+    """Ver detalle de una nota de entrega"""
+    nota = get_object_or_404(NotaEntregaVenta, pk=pk)
+    detalles = nota.detalles_entrega.select_related('producto')
+    
+    return render(request, 'notas_entrega/detail.html', {
+        'nota': nota,
+        'detalles': detalles,
+        'venta': nota.venta
+    })
+
+
+@login_required
+def nota_entrega_aplicar_inventario(request, pk):
+    """Aplicar descuento de inventario a una nota de entrega"""
+    nota = get_object_or_404(NotaEntregaVenta, pk=pk)
+    
+    if request.method == 'POST':
+        try:
+            if nota.aplicar_descuento_inventario():
+                messages.success(request, f'Descuento de inventario aplicado a la nota #{nota.id}')
+            else:
+                messages.warning(request, f'El descuento de inventario ya había sido aplicado a la nota #{nota.id}')
+        except Exception as e:
+            messages.error(request, f'Error al aplicar descuento: {str(e)}')
+    
+    return redirect('nota_entrega_detail', pk=nota.id)
+
+
+@login_required
+def nota_entrega_revertir_inventario(request, pk):
+    """Revertir descuento de inventario de una nota de entrega"""
+    nota = get_object_or_404(NotaEntregaVenta, pk=pk)
+    
+    if request.method == 'POST':
+        try:
+            if nota.revertir_descuento_inventario():
+                messages.success(request, f'Descuento de inventario revertido para la nota #{nota.id}')
+            else:
+                messages.warning(request, f'El descuento de inventario no estaba aplicado en la nota #{nota.id}')
+        except Exception as e:
+            messages.error(request, f'Error al revertir descuento: {str(e)}')
+    
+    return redirect('nota_entrega_detail', pk=nota.id)
+
 
 # === DOMICILIOS ===
 @login_required

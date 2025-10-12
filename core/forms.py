@@ -1,5 +1,5 @@
 from django import forms
-from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, Sucursal
+from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, Sucursal, NotaEntregaVenta, DetalleNotaEntrega
 
 class ClienteForm(forms.ModelForm):
     class Meta:
@@ -311,3 +311,75 @@ class SucursalForm(forms.ModelForm):
                 'placeholder': 'Notas adicionales (opcional)'
             }),
         }
+
+
+# === FORMULARIOS PARA NOTAS DE ENTREGA ===
+
+class NotaEntregaVentaForm(forms.ModelForm):
+    """Formulario para crear notas de entrega de ventas"""
+    
+    class Meta:
+        model = NotaEntregaVenta
+        fields = ['descripcion', 'observaciones']
+        widgets = {
+            'descripcion': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Ej: Cliente vino hoy y recogió 5 unidades del producto X',
+                'required': True
+            }),
+            'observaciones': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Observaciones adicionales (opcional)'
+            }),
+        }
+        labels = {
+            'descripcion': 'Descripción de la entrega',
+            'observaciones': 'Observaciones adicionales'
+        }
+
+
+class DetalleNotaEntregaForm(forms.ModelForm):
+    """Formulario para especificar productos y cantidades entregadas"""
+    
+    class Meta:
+        model = DetalleNotaEntrega
+        fields = ['producto', 'cantidad_entregada']
+        widgets = {
+            'producto': forms.Select(attrs={
+                'class': 'form-select producto-entrega-select'
+            }),
+            'cantidad_entregada': forms.NumberInput(attrs={
+                'class': 'form-control cantidad-entrega-input',
+                'min': '1',
+                'value': '1'
+            }),
+        }
+        labels = {
+            'producto': 'Producto',
+            'cantidad_entregada': 'Cantidad entregada'
+        }
+    
+    def __init__(self, *args, venta=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Si se proporciona una venta, filtrar solo los productos de esa venta
+        if venta:
+            productos_venta = venta.detalles.values_list('producto', flat=True)
+            self.fields['producto'].queryset = Producto.objects.filter(id__in=productos_venta)
+            
+            # Agregar información de cantidades pendientes en el help_text
+            self.venta = venta
+
+
+# Formset para manejar múltiples detalles de nota de entrega
+DetalleNotaEntregaFormSet = forms.inlineformset_factory(
+    NotaEntregaVenta,
+    DetalleNotaEntrega,
+    form=DetalleNotaEntregaForm,
+    extra=1,
+    min_num=1,
+    validate_min=True,
+    can_delete=True
+)

@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block title %}Nota de Entrega #{{ nota.id }} - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-clipboard-list me-2"></i>Nota de Entrega #{{ nota.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'venta_detail' nota.venta.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver a Venta
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Información de la nota -->
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Información de la Nota</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Fecha de Entrega:</strong><br>
+                    <span class="text-muted">{{ nota.fecha_entrega|date:"d/m/Y H:i" }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Registrado por:</strong><br>
+                    <span class="text-muted">{{ nota.usuario.username }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Estado del Inventario:</strong><br>
+                    {% if nota.descuento_inventario_aplicado %}
+                        <span class="badge bg-success fs-6">✓ Inventario Aplicado</span>
+                    {% else %}
+                        <span class="badge bg-warning fs-6">⏳ Pendiente de Aplicar</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Venta Asociada:</strong><br>
+                    <a href="{% url 'venta_detail' nota.venta.id %}" class="btn btn-sm btn-outline-primary">
+                        Ver Venta #{{ nota.venta.id }}
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Acciones -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Acciones</h6>
+            </div>
+            <div class="card-body">
+                {% if not nota.descuento_inventario_aplicado %}
+                <form method="post" action="{% url 'nota_entrega_aplicar_inventario' nota.id %}" class="mb-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success w-100" onclick="return confirm('¿Estás seguro de aplicar el descuento de inventario?')">
+                        <i class="fas fa-check me-2"></i>Aplicar Descuento de Inventario
+                    </button>
+                </form>
+                {% else %}
+                <form method="post" action="{% url 'nota_entrega_revertir_inventario' nota.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-warning w-100" onclick="return confirm('¿Estás seguro de revertir el descuento de inventario? Esto devolverá el stock.')">
+                        <i class="fas fa-undo me-2"></i>Revertir Descuento
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detalles de la entrega -->
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-file-alt me-2"></i>Descripción de la Entrega</h6>
+            </div>
+            <div class="card-body">
+                <p class="mb-0">{{ nota.descripcion }}</p>
+                
+                {% if nota.observaciones %}
+                <hr>
+                <h6 class="mb-2">Observaciones:</h6>
+                <p class="text-muted mb-0">{{ nota.observaciones }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-boxes me-2"></i>Productos Entregados</h6>
+            </div>
+            <div class="card-body">
+                {% if detalles %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                                <th class="text-center">Cantidad Entregada</th>
+                                <th class="text-center">Stock Actual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detalle in detalles %}
+                            <tr>
+                                <td>
+                                    <strong>{{ detalle.producto.nombre }}</strong>
+                                </td>
+                                <td>
+                                    <code>{{ detalle.producto.sku }}</code>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-success">{{ detalle.cantidad_entregada }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-info">{{ detalle.producto.stock_actual }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-box-open fa-2x text-muted mb-2"></i>
+                    <p class="text-muted">No hay productos registrados en esta nota</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

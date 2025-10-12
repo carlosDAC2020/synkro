@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+
+{% block title %}Notas de Entrega - Venta #{{ venta.id }} - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-clipboard-list me-2"></i>Notas de Entrega - Venta #{{ venta.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            {% if venta.permite_notas_entrega %}
+            <a href="{% url 'nota_entrega_crear' venta.id %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Nueva Nota
+            </a>
+            {% endif %}
+        </div>
+        <a href="{% url 'venta_detail' venta.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver a Venta
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Resumen de entregas -->
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Resumen de Entregas</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-center">Total</th>
+                            <th class="text-center">Entregado</th>
+                            <th class="text-center">Pendiente</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in resumen_entregas %}
+                        <tr>
+                            <td>{{ item.producto.nombre|truncatechars:25 }}</td>
+                            <td class="text-center">{{ item.cantidad_total }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-success">{{ item.cantidad_entregada }}</span>
+                            </td>
+                            <td class="text-center">
+                                {% if item.cantidad_pendiente > 0 %}
+                                    <span class="badge bg-warning">{{ item.cantidad_pendiente }}</span>
+                                {% else %}
+                                    <span class="badge bg-success">✓</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="4">
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ item.porcentaje_entregado }}%"
+                                         aria-valuenow="{{ item.porcentaje_entregado }}" 
+                                         aria-valuemin="0" aria-valuemax="100">
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                {% if venta.entrega_completa %}
+                <div class="alert alert-success mb-0 mt-3">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Entrega Completa</strong><br>
+                    Todos los productos han sido entregados.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-receipt me-2"></i>Información de la Venta</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Cliente:</strong> {{ venta.cliente.nombre|default:"Cliente General" }}</p>
+                <p><strong>Estado:</strong> 
+                    <span class="badge bg-info">{{ venta.get_estado_display }}</span>
+                </p>
+                <p><strong>Total:</strong> ${{ venta.monto_total|floatformat:2 }}</p>
+                <p class="mb-0"><strong>Fecha:</strong> {{ venta.fecha|date:"d/m/Y H:i" }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Lista de notas -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-list me-2"></i>Historial de Notas de Entrega</h6>
+            </div>
+            <div class="card-body">
+                {% if notas %}
+                    {% for nota in notas %}
+                    <div class="card mb-3 border-start border-4 {% if nota.descuento_inventario_aplicado %}border-success{% else %}border-warning{% endif %}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="fas fa-clipboard-list me-2"></i>
+                                        Nota #{{ nota.id }}
+                                    </h6>
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar me-1"></i>{{ nota.fecha_entrega|date:"d/m/Y H:i" }}
+                                        <i class="fas fa-user ms-2 me-1"></i>{{ nota.usuario.username }}
+                                    </small>
+                                </div>
+                                <div>
+                                    {% if nota.descuento_inventario_aplicado %}
+                                        <span class="badge bg-success">✓ Inventario Aplicado</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">⏳ Pendiente</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <p class="mb-2">{{ nota.descripcion }}</p>
+                            
+                            {% if nota.observaciones %}
+                            <p class="mb-2 text-muted"><small><strong>Obs:</strong> {{ nota.observaciones|truncatechars:100 }}</small></p>
+                            {% endif %}
+                            
+                            <div class="mb-2">
+                                <strong>Productos entregados:</strong>
+                                <ul class="mb-0">
+                                    {% for detalle in nota.detalles_entrega.all %}
+                                    <li><small>{{ detalle.producto.nombre }}: <span class="badge bg-success">{{ detalle.cantidad_entregada }}</span> unidades</small></li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'nota_entrega_detail' nota.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye me-1"></i>Ver Detalle
+                                </a>
+                                
+                                {% if not nota.descuento_inventario_aplicado %}
+                                <form method="post" action="{% url 'nota_entrega_aplicar_inventario' nota.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('¿Aplicar descuento de inventario?')">
+                                        <i class="fas fa-check me-1"></i>Aplicar Inventario
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No hay notas de entrega registradas</h5>
+                        <p class="text-muted mb-3">Aún no se han registrado entregas para esta venta.</p>
+                        {% if venta.permite_notas_entrega %}
+                        <a href="{% url 'nota_entrega_crear' venta.id %}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Crear Primera Nota
+                        </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
