@@ -1076,6 +1076,8 @@ def api_calcular_ruta_optima(request):
                 'orden_carga': orden_carga[idx],
                 'orden_entrega': orden_entrega[idx],
                 'cliente': venta.cliente.nombre if venta.cliente else 'Sin cliente',
+                'telefono': venta.cliente.telefono if venta.cliente else 'N/A',
+                'email': venta.cliente.email if venta.cliente and venta.cliente.email else 'N/A',
                 'direccion': venta.direccion_entrega,
                 'productos': productos_list,
                 'peso_total_kg': round(peso_total, 2),
@@ -1157,87 +1159,246 @@ def api_guardar_ruta(request):
 
 @login_required
 def ruta_descargar_plan_cargue(request, ruta_id):
-    """Descargar plan de cargue en PDF"""
-    from reportlab.lib.pagesizes import letter
+    """Descargar plan de cargue en PDF con mapa de la ruta"""
+    from reportlab.lib.pagesizes import letter, A4
     from reportlab.lib import colors
-    from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.units import inch, cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, KeepTogether
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     from django.http import HttpResponse
     from io import BytesIO
+    from datetime import datetime
     
     ruta = get_object_or_404(RutaEntrega, id=ruta_id)
+    detalles = ruta.detalles.select_related('venta__cliente').order_by('orden_entrega')
     
-    # Crear el PDF
+    # Crear el PDF con márgenes personalizados
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=letter,
+        rightMargin=0.75*inch,
+        leftMargin=0.75*inch,
+        topMargin=0.75*inch,
+        bottomMargin=0.75*inch
+    )
     elements = []
     styles = getSampleStyleSheet()
     
-    # Título
+    # Estilos personalizados
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=18,
+        fontSize=24,
         textColor=colors.HexColor('#667eea'),
-        spaceAfter=30,
-        alignment=1  # Center
+        spaceAfter=6,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
     )
-    elements.append(Paragraph(f"Plan de Cargue - Ruta #{ruta.id}", title_style))
-    elements.append(Spacer(1, 0.2*inch))
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=12,
+        textColor=colors.HexColor('#64748b'),
+        spaceAfter=20,
+        alignment=TA_CENTER
+    )
+    
+    section_title_style = ParagraphStyle(
+        'SectionTitle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#1e293b'),
+        spaceAfter=12,
+        spaceBefore=12,
+        fontName='Helvetica-Bold',
+        borderPadding=8,
+        backColor=colors.HexColor('#f1f5f9'),
+        borderWidth=0,
+        borderRadius=4
+    )
+    
+    # Encabezado
+    elements.append(Paragraph(f"PLAN DE CARGUE - RUTA #{ruta.id}", title_style))
+    elements.append(Paragraph(f"Generado el {datetime.now().strftime('%d/%m/%Y a las %H:%M')}", subtitle_style))
+    elements.append(Spacer(1, 0.3*inch))
     
     # Información general
+    elements.append(Paragraph("INFORMACIÓN GENERAL", section_title_style))
+    elements.append(Spacer(1, 0.15*inch))
+    
     info_data = [
         ['Sucursal:', ruta.sucursal_origen.nombre],
         ['Repartidor:', ruta.repartidor.nombre if ruta.repartidor else 'No asignado'],
-        ['Fecha:', str(ruta.fecha_entrega)],
+        ['Fecha:', ruta.fecha_entrega.strftime('%d/%m/%Y')],
         ['Distancia:', f"{ruta.distancia_total_km} km"],
         ['Tiempo estimado:', f"{ruta.tiempo_estimado_min} min"],
         ['Peso total:', f"{ruta.peso_total_kg} kg"],
         ['Paradas:', str(ruta.numero_paradas)]
     ]
     
-    info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+    info_table = Table(info_data, colWidths=[2.2*inch, 4.3*inch])
     info_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#eef2ff')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#4f46e5')),
+        ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1e293b')),
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-        ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('LINEBELOW', (0, 0), (-1, -2), 0.5, colors.HexColor('#e2e8f0')),
+        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
     ]))
     elements.append(info_table)
     elements.append(Spacer(1, 0.3*inch))
     
+    # Resumen visual de paradas
+    elements.append(Paragraph("RESUMEN DE ENTREGAS", section_title_style))
+    elements.append(Spacer(1, 0.15*inch))
+    
+    # Crear tabla de resumen de paradas
+    paradas_data = [['#', 'Cliente', 'Dirección', 'Peso']]
+    for detalle in detalles:
+        paradas_data.append([
+            str(detalle.orden_entrega),
+            detalle.venta.cliente.nombre if detalle.venta.cliente else 'Sin cliente',
+            detalle.venta.direccion_entrega[:40] + '...' if len(detalle.venta.direccion_entrega) > 40 else detalle.venta.direccion_entrega,
+            f"{detalle.peso_productos_kg} kg"
+        ])
+    
+    paradas_table = Table(paradas_data, colWidths=[0.5*inch, 2*inch, 3*inch, 1*inch])
+    paradas_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+    ]))
+    elements.append(paradas_table)
+    
+    # Nota sobre el mapa
+    note_style = ParagraphStyle(
+        'Note',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#64748b'),
+        alignment=TA_CENTER,
+        spaceAfter=0,
+        spaceBefore=10
+    )
+    elements.append(Paragraph("💡 Consulta el mapa interactivo en la vista web para ver la ruta completa", note_style))
+    elements.append(Spacer(1, 0.4*inch))
+    
     # Plan de cargue
-    elements.append(Paragraph("ORDEN DE CARGA (LIFO - Último en cargar, primero en entregar)", styles['Heading2']))
+    elements.append(Paragraph("ORDEN DE CARGA (LIFO)", section_title_style))
+    
+    lifo_note_style = ParagraphStyle(
+        'LIFONote',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#f59e0b'),
+        spaceAfter=16,
+        spaceBefore=8,
+        leftIndent=12
+    )
+    elements.append(Paragraph("⚠️ <b>Último en cargar, primero en entregar</b> - Cargar en orden inverso al de entrega", lifo_note_style))
     elements.append(Spacer(1, 0.2*inch))
     
-    for item in ruta.plan_cargue:
-        # Encabezado de cada item
-        item_title = f"Posición {item['orden_carga']} - Parada {item['orden_entrega']}: {item['cliente']}"
-        elements.append(Paragraph(item_title, styles['Heading3']))
+    item_header_style = ParagraphStyle(
+        'ItemHeader',
+        parent=styles['Normal'],
+        fontSize=12,
+        textColor=colors.white,
+        fontName='Helvetica-Bold',
+        spaceAfter=0
+    )
+    
+    for idx, item in enumerate(ruta.plan_cargue, 1):
+        # Color de fondo según posición (más oscuro = cargar primero)
+        bg_colors = [
+            colors.HexColor('#dc2626'),  # Rojo oscuro - cargar primero
+            colors.HexColor('#f97316'),  # Naranja
+            colors.HexColor('#f59e0b'),  # Amarillo
+        ]
+        bg_color = bg_colors[min(idx-1, len(bg_colors)-1)]
         
-        # Detalles
+        # Encabezado del item con color
+        header_data = [[
+            Paragraph(f"📦 Posición de Carga: {item['orden_carga']}", item_header_style),
+            Paragraph(f"📍 Parada: {item['orden_entrega']}", item_header_style)
+        ]]
+        
+        header_table = Table(header_data, colWidths=[3.25*inch, 3.25*inch])
+        header_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), bg_color),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        elements.append(header_table)
+        
+        # Detalles del item
+        productos_text = '<br/>'.join([f"• {p['cantidad']}x {p['nombre']} ({p['cantidad'] * p.get('peso_kg', 0):.2f} kg)" for p in item['productos']])
+        
+        # Información de contacto
+        contacto_text = f"📞 {item.get('telefono', 'N/A')}"
+        if item.get('email') and item.get('email') != 'N/A':
+            contacto_text += f" | ✉️ {item['email']}"
+        
         item_data = [
-            ['Dirección:', item['direccion']],
-            ['Peso:', f"{item['peso_total_kg']} kg"],
-            ['Productos:', ', '.join([f"{p['cantidad']}x {p['nombre']}" for p in item['productos']])]
+            [Paragraph('<b>Cliente:</b>', styles['Normal']), Paragraph(item['cliente'], styles['Normal'])],
+            [Paragraph('<b>Contacto:</b>', styles['Normal']), Paragraph(contacto_text, styles['Normal'])],
+            [Paragraph('<b>Dirección:</b>', styles['Normal']), Paragraph(item['direccion'], styles['Normal'])],
+            [Paragraph('<b>Peso Total:</b>', styles['Normal']), Paragraph(f"<b>{item['peso_total_kg']} kg</b>", styles['Normal'])],
+            [Paragraph('<b>Productos:</b>', styles['Normal']), Paragraph(productos_text, styles['Normal'])],
         ]
         
-        item_table = Table(item_data, colWidths=[1.5*inch, 4.5*inch])
+        item_table = Table(item_data, colWidths=[1.8*inch, 4.7*inch])
         item_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e8f4f8')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f8fafc')),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#475569')),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+            ('LINEBELOW', (0, 0), (-1, -2), 0.5, colors.HexColor('#e2e8f0')),
+            ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
         ]))
         elements.append(item_table)
-        elements.append(Spacer(1, 0.15*inch))
+        
+        # Alerta visual
+        alert_style = ParagraphStyle(
+            'Alert',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#dc2626'),
+            backColor=colors.HexColor('#fef2f2'),
+            borderColor=colors.HexColor('#fca5a5'),
+            borderWidth=1,
+            borderPadding=8,
+            spaceAfter=0
+        )
+        elements.append(Paragraph(f"⚠️ <b>IMPORTANTE:</b> Cargar en posición {item['orden_carga']} (entregar en parada {item['orden_entrega']})", alert_style))
+        elements.append(Spacer(1, 0.25*inch))
     
     # Generar PDF
     doc.build(elements)
