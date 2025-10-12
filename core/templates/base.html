@@ -380,8 +380,18 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if 'domicilio' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'domicilios_home' %}">
-                    <i class="fas fa-motorcycle"></i>Domicilios
+                <a class="nav-link {% if 'domicilio' in request.resolver_match.url_name or 'ruta' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'domicilios_home' %}">
+                    <i class="fas fa-route"></i>Domicilios
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'sucursal' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'sucursal_list' %}">
+                    <i class="fas fa-store"></i>Sucursales
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if 'repartidor' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'repartidor_list' %}">
+                    <i class="fas fa-user-tie"></i>Repartidores
                 </a>
             </li>
             <li class="nav-item">

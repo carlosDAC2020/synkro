@@ -52,10 +52,32 @@ urlpatterns = [
     path('pedidos/<int:pk>/cambiar-estado/', views.pedido_cambiar_estado, name='pedido_cambiar_estado'),
     path('pedidos/<int:pk>/pagos/nuevo/', views.pedido_pago_add, name='pedido_pago_add'),
     
-    # Domicilios
-    path('domicilios/', views.domicilios_home, name='domicilios_home'),
+    # Sucursales
+    path('sucursales/', views.sucursal_list, name='sucursal_list'),
+    path('sucursales/agregar/', views.sucursal_add, name='sucursal_add'),
+    path('sucursales/<int:pk>/editar/', views.sucursal_edit, name='sucursal_edit'),
+    path('sucursales/<int:pk>/eliminar/', views.sucursal_delete, name='sucursal_delete'),
     
-    # API endpoints
+    # Repartidores
+    path('repartidores/', views.repartidor_list, name='repartidor_list'),
+    path('repartidores/agregar/', views.repartidor_add, name='repartidor_add'),
+    path('repartidores/<int:pk>/editar/', views.repartidor_edit, name='repartidor_edit'),
+    path('repartidores/<int:pk>/eliminar/', views.repartidor_delete, name='repartidor_delete'),
+    
+    # Domicilios - Dashboard y Rutas
+    path('domicilios/', views.domicilios_home, name='domicilios_home'),
+    path('domicilios/planificar/', views.domicilios_planificar, name='domicilios_planificar'),
+    path('domicilios/rutas/<int:pk>/', views.ruta_detail, name='ruta_detail'),
+    path('domicilios/rutas/<int:pk>/cambiar-estado/', views.ruta_cambiar_estado, name='ruta_cambiar_estado'),
+    path('domicilios/rutas/<int:ruta_id>/descargar-plan/', views.ruta_descargar_plan_cargue, name='ruta_descargar_plan'),
+    path('domicilios/entregas/<int:detalle_id>/marcar/', views.ruta_marcar_entrega, name='ruta_marcar_entrega'),
+    
+    # API endpoints - Productos
     path('api/producto/<int:producto_id>/precio/', views.get_producto_precio, name='get_producto_precio'),
     path('api/buscar-productos/', views.buscar_productos, name='buscar_productos'),
+    
+    # API endpoints - Domicilios
+    path('api/domicilios/ventas-pendientes/', views.api_ventas_pendientes, name='api_ventas_pendientes'),
+    path('api/domicilios/calcular-ruta/', views.api_calcular_ruta_optima, name='api_calcular_ruta'),
+    path('api/domicilios/guardar-ruta/', views.api_guardar_ruta, name='api_guardar_ruta'),
 ]

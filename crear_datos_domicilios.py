@@ -80,22 +80,25 @@ ventas_data = [
 ]
 
 for venta_data in ventas_data:
-    # Crear o obtener cliente
-    cliente, _ = Cliente.objects.get_or_create(
-        nombre=venta_data['cliente'],
-        defaults={'telefono': '3001111111'}
-    )
+    # Crear o obtener cliente (manejo de duplicados)
+    cliente = Cliente.objects.filter(nombre=venta_data['cliente']).first()
+    if not cliente:
+        cliente = Cliente.objects.create(
+            nombre=venta_data['cliente'],
+            telefono='3001111111'
+        )
     
     # Crear venta
     venta = Venta.objects.create(
         cliente=cliente,
         usuario=usuario,
-        estado='COMPLETADA',
+        estado='PAGADA_PENDIENTE_ENTREGA',  # Estado correcto para domicilios
         requiere_domicilio=True,
         direccion_entrega=venta_data['direccion'],
         latitud_entrega=venta_data['lat'],
         longitud_entrega=venta_data['lng'],
-        prioridad_entrega=venta_data['prioridad']
+        prioridad_entrega=venta_data['prioridad'],
+        monto_total=producto.precio_venta  # Agregar monto total
     )
     
     # Agregar detalle

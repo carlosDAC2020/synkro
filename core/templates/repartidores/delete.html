@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Repartidor - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-trash me-2"></i>Eliminar Repartidor</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'repartidor_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="fas fa-exclamation-triangle me-2"></i>Confirmación de Eliminación
+            </div>
+            <div class="card-body">
+                <p class="mb-3">¿Estás seguro de que deseas eliminar el siguiente repartidor?</p>
+                
+                <div class="alert alert-light">
+                    <h5><strong>{{ repartidor.nombre }}</strong></h5>
+                    <p class="mb-1"><strong>Documento:</strong> {{ repartidor.documento }}</p>
+                    <p class="mb-1"><strong>Teléfono:</strong> {{ repartidor.telefono }}</p>
+                    <p class="mb-0"><strong>Estado:</strong> {{ repartidor.get_estado_display }}</p>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Advertencia:</strong> Esta acción no se puede deshacer.
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'repartidor_list' %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-2"></i>Eliminar Repartidor
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

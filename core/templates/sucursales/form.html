@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-store me-2"></i>{{ title }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'sucursal_list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.nombre.id_for_label }}" class="form-label">Nombre *</label>
+                            {{ form.nombre }}
+                            {% if form.nombre.errors %}
+                                <div class="text-danger small">{{ form.nombre.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.codigo.id_for_label }}" class="form-label">Código *</label>
+                            {{ form.codigo }}
+                            {% if form.codigo.errors %}
+                                <div class="text-danger small">{{ form.codigo.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.direccion.id_for_label }}" class="form-label">Dirección *</label>
+                        {{ form.direccion }}
+                        {% if form.direccion.errors %}
+                            <div class="text-danger small">{{ form.direccion.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.ciudad.id_for_label }}" class="form-label">Ciudad *</label>
+                            {{ form.ciudad }}
+                            {% if form.ciudad.errors %}
+                                <div class="text-danger small">{{ form.ciudad.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.departamento.id_for_label }}" class="form-label">Departamento *</label>
+                            {{ form.departamento }}
+                            {% if form.departamento.errors %}
+                                <div class="text-danger small">{{ form.departamento.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Coordenadas GPS:</strong> Puedes obtenerlas desde Google Maps haciendo clic derecho en el mapa.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.latitud.id_for_label }}" class="form-label">Latitud *</label>
+                            {{ form.latitud }}
+                            {% if form.latitud.errors %}
+                                <div class="text-danger small">{{ form.latitud.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.longitud.id_for_label }}" class="form-label">Longitud *</label>
+                            {{ form.longitud }}
+                            {% if form.longitud.errors %}
+                                <div class="text-danger small">{{ form.longitud.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.telefono.id_for_label }}" class="form-label">Teléfono</label>
+                            {{ form.telefono }}
+                            {% if form.telefono.errors %}
+                                <div class="text-danger small">{{ form.telefono.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.email.id_for_label }}" class="form-label">Email</label>
+                            {{ form.email }}
+                            {% if form.email.errors %}
+                                <div class="text-danger small">{{ form.email.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.radio_cobertura_km.id_for_label }}" class="form-label">Radio de Cobertura (km)</label>
+                            {{ form.radio_cobertura_km }}
+                            {% if form.radio_cobertura_km.errors %}
+                                <div class="text-danger small">{{ form.radio_cobertura_km.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.horario_apertura.id_for_label }}" class="form-label">Horario Apertura</label>
+                            {{ form.horario_apertura }}
+                            {% if form.horario_apertura.errors %}
+                                <div class="text-danger small">{{ form.horario_apertura.errors }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4 mb-3">
+                            <label for="{{ form.horario_cierre.id_for_label }}" class="form-label">Horario Cierre</label>
+                            {{ form.horario_cierre }}
+                            {% if form.horario_cierre.errors %}
+                                <div class="text-danger small">{{ form.horario_cierre.errors }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {{ form.activa }}
+                                <label class="form-check-label" for="{{ form.activa.id_for_label }}">
+                                    Sucursal Activa
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                {{ form.es_principal }}
+                                <label class="form-check-label" for="{{ form.es_principal.id_for_label }}">
+                                    Sucursal Principal
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.notas.id_for_label }}" class="form-label">Notas</label>
+                        {{ form.notas }}
+                        {% if form.notas.errors %}
+                            <div class="text-danger small">{{ form.notas.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'sucursal_list' %}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

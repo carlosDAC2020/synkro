@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+
+{% block title %}Detalle de Ruta #{{ ruta.id }} - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-route me-2"></i>Ruta #{{ ruta.id }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{% url 'ruta_descargar_plan' ruta.id %}" class="btn btn-success">
+                <i class="fas fa-download me-2"></i>Descargar Plan de Cargue
+            </a>
+        </div>
+        <a href="{% url 'domicilios_home' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Volver
+        </a>
+    </div>
+</div>
+
+<!-- Información General -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Información General</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Sucursal de Origen</label>
+                        <div class="fw-bold"><i class="fas fa-store me-2"></i>{{ ruta.sucursal_origen.nombre }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Repartidor</label>
+                        <div class="fw-bold">
+                            {% if ruta.repartidor %}
+                                <i class="fas fa-user me-2"></i>{{ ruta.repartidor.nombre }}
+                            {% else %}
+                                <span class="text-muted">Sin asignar</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Fecha de Entrega</label>
+                        <div class="fw-bold"><i class="fas fa-calendar me-2"></i>{{ ruta.fecha_entrega|date:"d/m/Y" }}</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Estado</label>
+                        <div>
+                            {% if ruta.estado == 'PLANIFICADA' %}
+                                <span class="badge bg-info fs-6">Planificada</span>
+                            {% elif ruta.estado == 'EN_CURSO' %}
+                                <span class="badge bg-warning fs-6">En Curso</span>
+                            {% elif ruta.estado == 'COMPLETADA' %}
+                                <span class="badge bg-success fs-6">Completada</span>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">Cancelada</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <div class="text-muted small">Distancia Total</div>
+                        <div class="fs-4 fw-bold text-primary">{{ ruta.distancia_total_km }} km</div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="text-muted small">Tiempo Estimado</div>
+                        <div class="fs-4 fw-bold text-primary">{{ ruta.tiempo_estimado_min }} min</div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="text-muted small">Paradas</div>
+                        <div class="fs-4 fw-bold text-primary">{{ ruta.numero_paradas }}</div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="text-muted small">Peso Total</div>
+                        <div class="fs-4 fw-bold text-primary">{{ ruta.peso_total_kg }} kg</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Acciones</h5>
+            </div>
+            <div class="card-body">
+                {% if ruta.estado == 'PLANIFICADA' %}
+                <form method="post" action="{% url 'ruta_cambiar_estado' ruta.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="estado" value="EN_CURSO">
+                    <button type="submit" class="btn btn-warning w-100 mb-2">
+                        <i class="fas fa-play me-2"></i>Iniciar Ruta
+                    </button>
+                </form>
+                <form method="post" action="{% url 'ruta_cambiar_estado' ruta.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="estado" value="CANCELADA">
+                    <button type="submit" class="btn btn-outline-danger w-100">
+                        <i class="fas fa-times me-2"></i>Cancelar Ruta
+                    </button>
+                </form>
+                {% elif ruta.estado == 'EN_CURSO' %}
+                <!-- Contar entregas completadas -->
+                {% with total_entregas=detalles|length %}
+                {% comment %}Contar manualmente las entregas completadas{% endcomment %}
+                {% for detalle in detalles %}
+                    {% if forloop.first %}
+                        {% if detalle.entregado %}{% with entregas_completadas=1 %}{% endwith %}{% else %}{% with entregas_completadas=0 %}{% endwith %}{% endif %}
+                    {% endif %}
+                {% endfor %}
+                
+                <div class="alert alert-info small mb-3">
+                    <strong>Progreso de Entregas:</strong><br>
+                    <span id="progreso-entregas">Cargando...</span>
+                </div>
+                
+                <div id="alerta-pendientes" class="alert alert-warning small mb-3" style="display: none;">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Debes marcar todas las entregas como completadas antes de finalizar la ruta.
+                </div>
+                
+                <button type="button" id="btn-completar-disabled" class="btn btn-success w-100" disabled title="Completa todas las entregas primero" style="display: none;">
+                    <i class="fas fa-check me-2"></i>Completar Ruta
+                </button>
+                
+                <form method="post" action="{% url 'ruta_cambiar_estado' ruta.id %}" id="form-completar" style="display: none;">
+                    {% csrf_token %}
+                    <input type="hidden" name="estado" value="COMPLETADA">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-check me-2"></i>Completar Ruta
+                    </button>
+                </form>
+                
+                <script>
+                    // Contar entregas completadas
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const totalEntregas = {{ total_entregas }};
+                        let completadas = 0;
+                        {% for detalle in detalles %}
+                            {% if detalle.entregado %}completadas++;{% endif %}
+                        {% endfor %}
+                        
+                        // Actualizar progreso
+                        document.getElementById('progreso-entregas').textContent = completadas + ' de ' + totalEntregas + ' completadas';
+                        
+                        // Mostrar botón correcto
+                        if (completadas < totalEntregas) {
+                            document.getElementById('alerta-pendientes').style.display = 'block';
+                            document.getElementById('btn-completar-disabled').style.display = 'block';
+                        } else {
+                            document.getElementById('form-completar').style.display = 'block';
+                        }
+                    });
+                </script>
+                {% endwith %}
+                {% endif %}
+                
+                {% if ruta.hora_inicio_real %}
+                <hr>
+                <div class="small">
+                    <div class="text-muted">Hora de Inicio</div>
+                    <div class="fw-bold">{{ ruta.hora_inicio_real|date:"H:i" }}</div>
+                </div>
+                {% endif %}
+                
+                {% if ruta.hora_fin_real %}
+                <div class="small mt-2">
+                    <div class="text-muted">Hora de Finalización</div>
+                    <div class="fw-bold">{{ ruta.hora_fin_real|date:"H:i" }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Plan de Cargue -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-boxes me-2"></i>Plan de Cargue (LIFO)</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>LIFO (Last In, First Out):</strong> Los productos que se cargan al final se entregan primero.
+                </div>
+                
+                {% for item in ruta.plan_cargue %}
+                <div class="card mb-3 border-start border-primary border-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="mb-1">
+                                    <span class="badge bg-secondary me-2">Posición Carga: {{ item.orden_carga }}</span>
+                                    <span class="badge bg-primary">Parada: {{ item.orden_entrega }}</span>
+                                </h6>
+                                <div class="fw-bold">{{ item.cliente }}</div>
+                                <div class="small text-muted">{{ item.direccion }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="badge bg-info">{{ item.peso_total_kg }} kg</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-2">
+                            <strong class="small">Productos:</strong>
+                            <ul class="mb-0 small">
+                                {% for producto in item.productos %}
+                                <li>{{ producto.cantidad }}x {{ producto.nombre }} ({{ producto.peso_kg }} kg)</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-warning small mt-2 mb-0">
+                            <i class="fas fa-exclamation-triangle me-1"></i>{{ item.instruccion }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detalles de Entregas -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Entregas en Ruta</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Orden</th>
+                                <th>Venta</th>
+                                <th>Cliente</th>
+                                <th>Dirección</th>
+                                <th>Peso</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detalle in detalles %}
+                            <tr>
+                                <td><span class="badge bg-primary">{{ detalle.orden_entrega }}</span></td>
+                                <td><a href="{% url 'venta_detail' detalle.venta.id %}">#{{ detalle.venta.id }}</a></td>
+                                <td>{{ detalle.venta.cliente.nombre|default:"Sin cliente" }}</td>
+                                <td>{{ detalle.venta.direccion_entrega|truncatewords:8 }}</td>
+                                <td>{{ detalle.peso_productos_kg }} kg</td>
+                                <td>
+                                    {% if detalle.entregado %}
+                                        <span class="badge bg-success">Entregado</span>
+                                        <div class="small text-muted">{{ detalle.hora_entrega_real|date:"H:i" }}</div>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pendiente</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not detalle.entregado and ruta.estado == 'EN_CURSO' %}
+                                    <button type="button" class="btn btn-sm btn-success" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#marcarModal{{ detalle.id }}">
+                                        <i class="fas fa-check me-1"></i>Marcar Entregado
+                                    </button>
+                                    
+                                    <!-- Modal -->
+                                    <div class="modal fade" id="marcarModal{{ detalle.id }}" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Confirmar Entrega</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <form method="post" action="{% url 'ruta_marcar_entrega' detalle.id %}">
+                                                    {% csrf_token %}
+                                                    <div class="modal-body">
+                                                        <p>¿Confirmas que se entregó la venta #{{ detalle.venta.id }}?</p>
+                                                        <div class="mb-3">
+                                                            <label class="form-label">Observaciones (opcional)</label>
+                                                            <textarea name="observaciones" class="form-control" rows="3"></textarea>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                        <button type="submit" class="btn btn-success">Confirmar Entrega</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

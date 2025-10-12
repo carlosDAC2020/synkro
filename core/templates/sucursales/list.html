@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Sucursales - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-store me-2"></i>Gestión de Sucursales</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'sucursal_add' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Nueva Sucursal
+        </a>
+    </div>
+</div>
+
+<!-- Buscador -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form method="get" class="d-flex">
+            <input type="text" name="search" class="form-control me-2" 
+                   placeholder="Buscar por nombre, código o ciudad..." 
+                   value="{{ search }}">
+            <button type="submit" class="btn btn-outline-secondary">
+                <i class="fas fa-search"></i>
+            </button>
+            {% if search %}
+            <a href="{% url 'sucursal_list' %}" class="btn btn-outline-danger ms-2">
+                <i class="fas fa-times"></i>
+            </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Lista de sucursales -->
+<div class="card">
+    <div class="card-body">
+        {% if sucursales %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Ciudad</th>
+                        <th>Dirección</th>
+                        <th>Estado</th>
+                        <th>Principal</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sucursal in sucursales %}
+                    <tr>
+                        <td><span class="badge bg-primary">{{ sucursal.codigo }}</span></td>
+                        <td>
+                            <strong>{{ sucursal.nombre }}</strong>
+                        </td>
+                        <td>
+                            <i class="fas fa-map-marker-alt me-1"></i>{{ sucursal.ciudad }}
+                        </td>
+                        <td>{{ sucursal.direccion|truncatewords:8 }}</td>
+                        <td>
+                            {% if sucursal.activa %}
+                                <span class="badge bg-success">Activa</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactiva</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sucursal.es_principal %}
+                                <i class="fas fa-star text-warning" title="Sucursal Principal"></i>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{{ sucursal.url_google_maps }}" target="_blank"
+                                   class="btn btn-sm btn-outline-info" title="Ver en Google Maps">
+                                    <i class="fas fa-map"></i>
+                                </a>
+                                <a href="{% url 'sucursal_edit' sucursal.id %}" 
+                                   class="btn btn-sm btn-outline-primary" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <a href="{% url 'sucursal_delete' sucursal.id %}" 
+                                   class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-store fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No hay sucursales registradas</h5>
+            {% if search %}
+            <p class="text-muted">No se encontraron resultados para "{{ search }}"</p>
+            <a href="{% url 'sucursal_list' %}" class="btn btn-secondary">Ver todas las sucursales</a>
+            {% else %}
+            <p class="text-muted">Comienza agregando tu primera sucursal</p>
+            <a href="{% url 'sucursal_add' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Agregar Sucursal
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

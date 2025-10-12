@@ -26,6 +26,10 @@ class Producto(models.Model):
     stock_minimo = models.PositiveIntegerField(default=5, help_text="Umbral para alertas de stock bajo")
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2)
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Campos para logística de domicilios
+    peso_kg = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="Peso en kilogramos")
+    volumen_m3 = models.DecimalField(max_digits=6, decimal_places=3, default=0, help_text="Volumen en metros cúbicos")
 
     def __str__(self):
         return f"{self.nombre} ({self.sku})"
@@ -439,7 +443,17 @@ class RutaEntrega(models.Model):
     waypoints = models.JSONField(help_text="Coordenadas de los puntos de la ruta")
     geometria_ruta = models.JSONField(null=True, blank=True, help_text="Geometría completa de la ruta")
     
+    # Datos adicionales para logística
+    estado_trafico = models.JSONField(default=dict, blank=True, help_text="Información de tráfico al momento de planificar")
+    plan_cargue = models.JSONField(default=list, blank=True, help_text="Plan de cargue LIFO con orden de productos")
+    peso_total_kg = models.DecimalField(max_digits=8, decimal_places=2, default=0, help_text="Peso total de la carga")
+    volumen_total_m3 = models.DecimalField(max_digits=8, decimal_places=3, default=0, help_text="Volumen total de la carga")
+    
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PLANIFICADA')
+    
+    # Tracking
+    hora_inicio_real = models.DateTimeField(null=True, blank=True, help_text="Hora en que inició la ruta")
+    hora_fin_real = models.DateTimeField(null=True, blank=True, help_text="Hora en que finalizó la ruta")
     
     def __str__(self):
         return f"Ruta #{self.id} - {self.sucursal_origen.nombre} - {self.fecha_entrega}"
@@ -454,10 +468,15 @@ class DetalleRuta(models.Model):
     ruta = models.ForeignKey(RutaEntrega, related_name='detalles', on_delete=models.CASCADE)
     venta = models.ForeignKey(Venta, on_delete=models.CASCADE)
     orden_entrega = models.PositiveIntegerField(help_text="Orden en la ruta (1, 2, 3...)")
+    orden_carga = models.PositiveIntegerField(default=1, help_text="Orden de carga en el vehículo (LIFO)")
     tiempo_estimado_llegada = models.TimeField(null=True, blank=True)
     entregado = models.BooleanField(default=False)
     hora_entrega_real = models.DateTimeField(null=True, blank=True)
     observaciones = models.TextField(blank=True)
+    
+    # Datos logísticos
+    peso_productos_kg = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    volumen_productos_m3 = models.DecimalField(max_digits=6, decimal_places=3, default=0)
     
     def __str__(self):
         return f"Parada {self.orden_entrega} - Venta #{self.venta.id}"

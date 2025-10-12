@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestión de Domicilios - Synkro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="fas fa-truck me-2"></i>Gestión de Domicilios</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'domicilios_planificar' %}" class="btn btn-primary">
+            <i class="fas fa-route me-2"></i>Planificar Nueva Ruta
+        </a>
+    </div>
+</div>
+
+<!-- Estadísticas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0">Planificadas</h6>
+                        <h2 class="mb-0">{{ rutas_planificadas }}</h2>
+                    </div>
+                    <i class="fas fa-calendar-check fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0">En Curso</h6>
+                        <h2 class="mb-0">{{ rutas_en_curso }}</h2>
+                    </div>
+                    <i class="fas fa-truck-moving fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0">Completadas</h6>
+                        <h2 class="mb-0">{{ rutas_completadas }}</h2>
+                    </div>
+                    <i class="fas fa-check-circle fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0">Total Rutas</h6>
+                        <h2 class="mb-0">{{ rutas.count }}</h2>
+                    </div>
+                    <i class="fas fa-map-marked-alt fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <form method="get" class="d-flex">
+            <select name="estado" class="form-select me-2" onchange="this.form.submit()">
+                <option value="todas" {% if estado_selected == 'todas' %}selected{% endif %}>Todas las rutas</option>
+                <option value="planificada" {% if estado_selected == 'planificada' %}selected{% endif %}>Planificadas</option>
+                <option value="en_curso" {% if estado_selected == 'en_curso' %}selected{% endif %}>En Curso</option>
+                <option value="completada" {% if estado_selected == 'completada' %}selected{% endif %}>Completadas</option>
+                <option value="cancelada" {% if estado_selected == 'cancelada' %}selected{% endif %}>Canceladas</option>
+            </select>
+        </form>
+    </div>
+</div>
+
+<!-- Lista de Rutas -->
+<div class="card">
+    <div class="card-body">
+        {% if rutas %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Sucursal</th>
+                        <th>Repartidor</th>
+                        <th>Fecha Entrega</th>
+                        <th>Paradas</th>
+                        <th>Distancia</th>
+                        <th>Tiempo Est.</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ruta in rutas %}
+                    <tr>
+                        <td><span class="badge bg-primary">#{{ ruta.id }}</span></td>
+                        <td>
+                            <i class="fas fa-store me-1"></i>{{ ruta.sucursal_origen.nombre }}
+                        </td>
+                        <td>
+                            {% if ruta.repartidor %}
+                                <i class="fas fa-user me-1"></i>{{ ruta.repartidor.nombre }}
+                            {% else %}
+                                <span class="text-muted">Sin asignar</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ ruta.fecha_entrega|date:"d/m/Y" }}</td>
+                        <td><span class="badge bg-secondary">{{ ruta.numero_paradas }}</span></td>
+                        <td>{{ ruta.distancia_total_km }} km</td>
+                        <td>{{ ruta.tiempo_estimado_min }} min</td>
+                        <td>
+                            {% if ruta.estado == 'PLANIFICADA' %}
+                                <span class="badge bg-info">Planificada</span>
+                            {% elif ruta.estado == 'EN_CURSO' %}
+                                <span class="badge bg-warning">En Curso</span>
+                            {% elif ruta.estado == 'COMPLETADA' %}
+                                <span class="badge bg-success">Completada</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Cancelada</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{% url 'ruta_detail' ruta.id %}" 
+                                   class="btn btn-sm btn-outline-primary" title="Ver Detalle">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'ruta_descargar_plan' ruta.id %}" 
+                                   class="btn btn-sm btn-outline-success" title="Descargar Plan">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-route fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No hay rutas registradas</h5>
+            <p class="text-muted">Comienza planificando tu primera ruta de entregas</p>
+            <a href="{% url 'domicilios_planificar' %}" class="btn btn-primary">
+                <i class="fas fa-route me-2"></i>Planificar Ruta
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

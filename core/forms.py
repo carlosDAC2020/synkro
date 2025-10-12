@@ -1,5 +1,5 @@
 from django import forms
-from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, Sucursal, NotaEntregaVenta, DetalleNotaEntrega
+from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, Sucursal, Repartidor, RutaEntrega, DetalleRuta, NotaEntregaVenta, DetalleNotaEntrega
 
 class ClienteForm(forms.ModelForm):
     class Meta:
@@ -309,6 +309,47 @@ class SucursalForm(forms.ModelForm):
                 'class': 'form-control',
                 'rows': 3,
                 'placeholder': 'Notas adicionales (opcional)'
+            }),
+        }
+
+
+class RepartidorForm(forms.ModelForm):
+    class Meta:
+        model = Repartidor
+        fields = ['nombre', 'telefono', 'documento', 'estado']
+        widgets = {
+            'nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre completo del repartidor'
+            }),
+            'telefono': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Teléfono de contacto'
+            }),
+            'documento': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Número de documento (cédula)'
+            }),
+            'estado': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+        }
+
+
+class RutaEntregaForm(forms.ModelForm):
+    class Meta:
+        model = RutaEntrega
+        fields = ['sucursal_origen', 'repartidor', 'fecha_entrega']
+        widgets = {
+            'sucursal_origen': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'repartidor': forms.Select(attrs={
+                'class': 'form-select'
+            }),
+            'fecha_entrega': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date'
             }),
         }
 

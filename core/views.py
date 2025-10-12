@@ -8,8 +8,8 @@ from django.http import JsonResponse
 from django.db import transaction
 from django.db.models import Q, F
 
-from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, NotaEntregaVenta, DetalleNotaEntrega
-from .forms import ClienteForm, ProductoForm, VentaForm, VentaDetalleFormSet, ProveedorForm, PedidoProveedorForm, PedidoDetalleFormSet, PagoProveedorForm, NotaEntregaVentaForm, DetalleNotaEntregaFormSet
+from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, NotaEntregaVenta, DetalleNotaEntrega, Sucursal, Repartidor, RutaEntrega, DetalleRuta
+from .forms import ClienteForm, ProductoForm, VentaForm, VentaDetalleFormSet, ProveedorForm, PedidoProveedorForm, PedidoDetalleFormSet, PagoProveedorForm, NotaEntregaVentaForm, DetalleNotaEntregaFormSet, SucursalForm, RepartidorForm, RutaEntregaForm
 
 # Dashboard
 @login_required
@@ -696,9 +696,554 @@ def nota_entrega_revertir_inventario(request, pk):
     return redirect('nota_entrega_detail', pk=nota.id)
 
 
-# === DOMICILIOS ===
+# === GESTIÓN DE SUCURSALES ===
+
+@login_required
+def sucursal_list(request):
+    """Lista de sucursales"""
+    search = request.GET.get('search', '')
+    sucursales = Sucursal.objects.all()
+    
+    if search:
+        sucursales = sucursales.filter(
+            Q(nombre__icontains=search) | 
+            Q(codigo__icontains=search) |
+            Q(ciudad__icontains=search)
+        )
+    
+    return render(request, 'sucursales/list.html', {
+        'sucursales': sucursales,
+        'search': search
+    })
+
+@login_required
+def sucursal_add(request):
+    """Agregar nueva sucursal"""
+    if request.method == 'POST':
+        form = SucursalForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Sucursal agregada exitosamente.')
+            return redirect('sucursal_list')
+    else:
+        form = SucursalForm()
+    
+    return render(request, 'sucursales/form.html', {
+        'form': form,
+        'title': 'Agregar Sucursal'
+    })
+
+@login_required
+def sucursal_edit(request, pk):
+    """Editar sucursal existente"""
+    sucursal = get_object_or_404(Sucursal, pk=pk)
+    
+    if request.method == 'POST':
+        form = SucursalForm(request.POST, instance=sucursal)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Sucursal actualizada exitosamente.')
+            return redirect('sucursal_list')
+    else:
+        form = SucursalForm(instance=sucursal)
+    
+    return render(request, 'sucursales/form.html', {
+        'form': form,
+        'title': 'Editar Sucursal',
+        'sucursal': sucursal
+    })
+
+@login_required
+def sucursal_delete(request, pk):
+    """Eliminar sucursal"""
+    sucursal = get_object_or_404(Sucursal, pk=pk)
+    if request.method == 'POST':
+        sucursal.delete()
+        messages.success(request, 'Sucursal eliminada exitosamente.')
+        return redirect('sucursal_list')
+    
+    return render(request, 'sucursales/delete.html', {'sucursal': sucursal})
+
+# === GESTIÓN DE REPARTIDORES ===
+
+@login_required
+def repartidor_list(request):
+    """Lista de repartidores"""
+    search = request.GET.get('search', '')
+    estado = request.GET.get('estado', '')
+    
+    repartidores = Repartidor.objects.all()
+    
+    if search:
+        repartidores = repartidores.filter(
+            Q(nombre__icontains=search) | 
+            Q(documento__icontains=search) |
+            Q(telefono__icontains=search)
+        )
+    
+    if estado:
+        repartidores = repartidores.filter(estado=estado)
+    
+    return render(request, 'repartidores/list.html', {
+        'repartidores': repartidores,
+        'search': search,
+        'estado_selected': estado,
+        'estados': Repartidor.ESTADO_CHOICES
+    })
+
+@login_required
+def repartidor_add(request):
+    """Agregar nuevo repartidor"""
+    if request.method == 'POST':
+        form = RepartidorForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Repartidor agregado exitosamente.')
+            return redirect('repartidor_list')
+    else:
+        form = RepartidorForm()
+    
+    return render(request, 'repartidores/form.html', {
+        'form': form,
+        'title': 'Agregar Repartidor'
+    })
+
+@login_required
+def repartidor_edit(request, pk):
+    """Editar repartidor existente"""
+    repartidor = get_object_or_404(Repartidor, pk=pk)
+    
+    if request.method == 'POST':
+        form = RepartidorForm(request.POST, instance=repartidor)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Repartidor actualizado exitosamente.')
+            return redirect('repartidor_list')
+    else:
+        form = RepartidorForm(instance=repartidor)
+    
+    return render(request, 'repartidores/form.html', {
+        'form': form,
+        'title': 'Editar Repartidor',
+        'repartidor': repartidor
+    })
+
+@login_required
+def repartidor_delete(request, pk):
+    """Eliminar repartidor"""
+    repartidor = get_object_or_404(Repartidor, pk=pk)
+    if request.method == 'POST':
+        repartidor.delete()
+        messages.success(request, 'Repartidor eliminado exitosamente.')
+        return redirect('repartidor_list')
+    
+    return render(request, 'repartidores/delete.html', {'repartidor': repartidor})
+
+# === DOMICILIOS - DASHBOARD Y GESTIÓN DE RUTAS ===
+
 @login_required
 def domicilios_home(request):
-    """Simulador interactivo del módulo de domicilios"""
-    return render(request, 'domicilios/home.html')
+    """Dashboard principal de domicilios con tabs"""
+    estado = request.GET.get('estado', 'todas')
+    
+    rutas = RutaEntrega.objects.select_related('sucursal_origen', 'repartidor').prefetch_related('detalles__venta')
+    
+    if estado != 'todas':
+        rutas = rutas.filter(estado=estado.upper())
+    
+    context = {
+        'rutas': rutas.order_by('-fecha_creacion'),
+        'rutas_planificadas': RutaEntrega.objects.filter(estado='PLANIFICADA').count(),
+        'rutas_en_curso': RutaEntrega.objects.filter(estado='EN_CURSO').count(),
+        'rutas_completadas': RutaEntrega.objects.filter(estado='COMPLETADA').count(),
+        'estado_selected': estado
+    }
+    return render(request, 'domicilios/dashboard.html', context)
+
+@login_required
+def domicilios_planificar(request):
+    """Vista para planificar nuevas rutas"""
+    ventas_pendientes = Venta.objects.filter(
+        requiere_domicilio=True,
+        estado='PAGADA_PENDIENTE_ENTREGA'
+    ).exclude(
+        id__in=DetalleRuta.objects.values_list('venta_id', flat=True)
+    ).select_related('cliente')
+    
+    sucursales = Sucursal.objects.filter(activa=True)
+    repartidores = Repartidor.objects.filter(estado='ACTIVO')
+    
+    return render(request, 'domicilios/planificar.html', {
+        'ventas': ventas_pendientes,
+        'sucursales': sucursales,
+        'repartidores': repartidores
+    })
+
+@login_required
+def ruta_detail(request, pk):
+    """Detalle de una ruta específica"""
+    ruta = get_object_or_404(RutaEntrega, pk=pk)
+    detalles = ruta.detalles.select_related('venta__cliente').order_by('orden_entrega')
+    
+    return render(request, 'domicilios/ruta_detail.html', {
+        'ruta': ruta,
+        'detalles': detalles
+    })
+
+@login_required
+def ruta_cambiar_estado(request, pk):
+    """Cambiar estado de una ruta"""
+    ruta = get_object_or_404(RutaEntrega, pk=pk)
+    
+    if request.method == 'POST':
+        nuevo_estado = request.POST.get('estado')
+        if nuevo_estado in dict(RutaEntrega.ESTADO_CHOICES):
+            # Validar que todas las entregas estén completadas antes de marcar como COMPLETADA
+            if nuevo_estado == 'COMPLETADA':
+                entregas_pendientes = ruta.detalles.filter(entregado=False).count()
+                if entregas_pendientes > 0:
+                    messages.error(request, f'No se puede completar la ruta. Hay {entregas_pendientes} entrega(s) pendiente(s). Debes marcar todas las entregas como completadas primero.')
+                    return redirect('ruta_detail', pk=ruta.id)
+            
+            ruta.estado = nuevo_estado
+            
+            # Registrar hora de inicio/fin
+            if nuevo_estado == 'EN_CURSO' and not ruta.hora_inicio_real:
+                ruta.hora_inicio_real = timezone.now()
+            elif nuevo_estado == 'COMPLETADA' and not ruta.hora_fin_real:
+                ruta.hora_fin_real = timezone.now()
+            
+            ruta.save()
+            messages.success(request, f'Estado de la ruta #{ruta.id} actualizado a {ruta.get_estado_display()}')
+        
+        return redirect('ruta_detail', pk=ruta.id)
+    
+    return redirect('domicilios_home')
+
+@login_required
+def ruta_marcar_entrega(request, detalle_id):
+    """Marcar una entrega como completada"""
+    detalle = get_object_or_404(DetalleRuta, pk=detalle_id)
+    
+    if request.method == 'POST':
+        detalle.entregado = True
+        detalle.hora_entrega_real = timezone.now()
+        detalle.observaciones = request.POST.get('observaciones', '')
+        detalle.save()
+        
+        # Actualizar estado de la venta (sin validar stock)
+        venta = detalle.venta
+        venta.estado = 'COMPLETADA'
+        # Usar update para evitar el método save() que valida stock
+        Venta.objects.filter(id=venta.id).update(estado='COMPLETADA')
+        
+        messages.success(request, f'Entrega #{detalle.venta.id} marcada como completada')
+        
+        # Verificar si todas las entregas de la ruta están completadas
+        ruta = detalle.ruta
+        entregas_pendientes = ruta.detalles.filter(entregado=False).count()
+        
+        if entregas_pendientes == 0 and ruta.estado == 'EN_CURSO':
+            # Auto-completar la ruta si todas las entregas están hechas
+            ruta.estado = 'COMPLETADA'
+            ruta.hora_fin_real = timezone.now()
+            ruta.save()
+            messages.success(request, f'¡Ruta #{ruta.id} completada automáticamente! Todas las entregas fueron realizadas.')
+        
+        return redirect('ruta_detail', pk=detalle.ruta.id)
+    
+    return redirect('ruta_detail', pk=detalle.ruta.id)
+
+# === APIs PARA DOMICILIOS ===
+
+@login_required
+def api_ventas_pendientes(request):
+    """API: Obtener ventas pendientes de domicilio"""
+    ventas = Venta.objects.filter(
+        requiere_domicilio=True,
+        estado='PAGADA_PENDIENTE_ENTREGA'
+    ).exclude(
+        id__in=DetalleRuta.objects.values_list('venta_id', flat=True)
+    ).select_related('cliente').prefetch_related('detalles__producto')
+    
+    data = []
+    for v in ventas:
+        peso_total = 0
+        volumen_total = 0
+        productos_list = []
+        
+        for d in v.detalles.all():
+            peso = float(d.producto.peso_kg) * d.cantidad if d.producto.peso_kg else 0
+            volumen = float(d.producto.volumen_m3) * d.cantidad if d.producto.volumen_m3 else 0
+            peso_total += peso
+            volumen_total += volumen
+            
+            productos_list.append({
+                'nombre': d.producto.nombre,
+                'cantidad': d.cantidad,
+                'peso_kg': peso,
+                'volumen_m3': volumen
+            })
+        
+        data.append({
+            'id': v.id,
+            'cliente': v.cliente.nombre if v.cliente else 'Sin cliente',
+            'direccion': v.direccion_entrega,
+            'coords': [float(v.latitud_entrega), float(v.longitud_entrega)] if v.latitud_entrega and v.longitud_entrega else None,
+            'prioridad': v.prioridad_entrega,
+            'monto': float(v.monto_total),
+            'peso_total_kg': peso_total,
+            'volumen_total_m3': volumen_total,
+            'productos': productos_list
+        })
+    
+    return JsonResponse({'ventas': data})
+
+@login_required
+def api_calcular_ruta_optima(request):
+    """API: Calcular ruta óptima con tráfico usando OSRM"""
+    import requests
+    import json as json_module
+    from decimal import Decimal
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        data = json_module.loads(request.body)
+        sucursal_id = data.get('sucursal_id')
+        ventas_ids = data.get('ventas_ids', [])
+        
+        if not sucursal_id or not ventas_ids:
+            return JsonResponse({'error': 'Datos incompletos'}, status=400)
+        
+        # Obtener coordenadas
+        sucursal = Sucursal.objects.get(id=sucursal_id)
+        ventas = Venta.objects.filter(id__in=ventas_ids).prefetch_related('detalles__producto')
+        
+        # Construir waypoints
+        waypoints = [[float(sucursal.latitud), float(sucursal.longitud)]]
+        ventas_ordenadas = []
+        
+        for v in ventas:
+            if v.latitud_entrega and v.longitud_entrega:
+                waypoints.append([float(v.latitud_entrega), float(v.longitud_entrega)])
+                ventas_ordenadas.append(v)
+        
+        # Llamar a OSRM para calcular ruta
+        coords_str = ';'.join([f"{w[1]},{w[0]}" for w in waypoints])
+        url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}"
+        params = {
+            'overview': 'full',
+            'geometries': 'geojson',
+            'steps': 'true',
+            'annotations': 'true'
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        osrm_data = response.json()
+        
+        if osrm_data.get('code') != 'Ok':
+            return JsonResponse({'error': 'No se pudo calcular la ruta'}, status=400)
+        
+        route = osrm_data['routes'][0]
+        
+        # Generar plan de cargue LIFO
+        plan_cargue = []
+        orden_entrega = list(range(1, len(ventas_ordenadas) + 1))
+        orden_carga = list(reversed(orden_entrega))
+        
+        for idx, venta in enumerate(ventas_ordenadas):
+            peso_total = 0
+            volumen_total = 0
+            productos_list = []
+            
+            for detalle in venta.detalles.all():
+                peso = float(detalle.producto.peso_kg) * detalle.cantidad if detalle.producto.peso_kg else 0
+                volumen = float(detalle.producto.volumen_m3) * detalle.cantidad if detalle.producto.volumen_m3 else 0
+                peso_total += peso
+                volumen_total += volumen
+                
+                productos_list.append({
+                    'nombre': detalle.producto.nombre,
+                    'cantidad': detalle.cantidad,
+                    'peso_kg': round(peso, 2),
+                    'volumen_m3': round(volumen, 3)
+                })
+            
+            plan_cargue.append({
+                'venta_id': venta.id,
+                'orden_carga': orden_carga[idx],
+                'orden_entrega': orden_entrega[idx],
+                'cliente': venta.cliente.nombre if venta.cliente else 'Sin cliente',
+                'direccion': venta.direccion_entrega,
+                'productos': productos_list,
+                'peso_total_kg': round(peso_total, 2),
+                'volumen_total_m3': round(volumen_total, 3),
+                'instruccion': f"Cargar en posición {orden_carga[idx]} (entregar en parada {orden_entrega[idx]})"
+            })
+        
+        # Calcular totales
+        peso_total_ruta = sum(item['peso_total_kg'] for item in plan_cargue)
+        volumen_total_ruta = sum(item['volumen_total_m3'] for item in plan_cargue)
+        
+        return JsonResponse({
+            'success': True,
+            'ruta': {
+                'distancia_km': round(route['distance'] / 1000, 2),
+                'tiempo_min': round(route['duration'] / 60),
+                'geometria': route['geometry'],
+                'waypoints': waypoints,
+                'trafico': route.get('annotations', {})
+            },
+            'plan_cargue': plan_cargue,
+            'peso_total_kg': round(peso_total_ruta, 2),
+            'volumen_total_m3': round(volumen_total_ruta, 3),
+            'numero_paradas': len(ventas_ordenadas)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def api_guardar_ruta(request):
+    """API: Guardar ruta planificada en la base de datos"""
+    import json as json_module
+    from decimal import Decimal
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Método no permitido'}, status=405)
+    
+    try:
+        data = json_module.loads(request.body)
+        
+        with transaction.atomic():
+            # Crear ruta
+            ruta = RutaEntrega.objects.create(
+                sucursal_origen_id=data['sucursal_id'],
+                repartidor_id=data.get('repartidor_id'),
+                fecha_entrega=data['fecha_entrega'],
+                distancia_total_km=Decimal(str(data['distancia_km'])),
+                tiempo_estimado_min=data['tiempo_min'],
+                numero_paradas=data['numero_paradas'],
+                waypoints=data['waypoints'],
+                geometria_ruta=data['geometria'],
+                estado_trafico=data.get('trafico', {}),
+                plan_cargue=data['plan_cargue'],
+                peso_total_kg=Decimal(str(data['peso_total_kg'])),
+                volumen_total_m3=Decimal(str(data['volumen_total_m3'])),
+                estado='PLANIFICADA'
+            )
+            
+            # Crear detalles
+            for item in data['plan_cargue']:
+                DetalleRuta.objects.create(
+                    ruta=ruta,
+                    venta_id=item['venta_id'],
+                    orden_entrega=item['orden_entrega'],
+                    orden_carga=item['orden_carga'],
+                    peso_productos_kg=Decimal(str(item['peso_total_kg'])),
+                    volumen_productos_m3=Decimal(str(item['volumen_total_m3']))
+                )
+            
+            return JsonResponse({
+                'success': True,
+                'ruta_id': ruta.id,
+                'message': f'Ruta #{ruta.id} creada exitosamente'
+            })
+            
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def ruta_descargar_plan_cargue(request, ruta_id):
+    """Descargar plan de cargue en PDF"""
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from django.http import HttpResponse
+    from io import BytesIO
+    
+    ruta = get_object_or_404(RutaEntrega, id=ruta_id)
+    
+    # Crear el PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Título
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#667eea'),
+        spaceAfter=30,
+        alignment=1  # Center
+    )
+    elements.append(Paragraph(f"Plan de Cargue - Ruta #{ruta.id}", title_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Información general
+    info_data = [
+        ['Sucursal:', ruta.sucursal_origen.nombre],
+        ['Repartidor:', ruta.repartidor.nombre if ruta.repartidor else 'No asignado'],
+        ['Fecha:', str(ruta.fecha_entrega)],
+        ['Distancia:', f"{ruta.distancia_total_km} km"],
+        ['Tiempo estimado:', f"{ruta.tiempo_estimado_min} min"],
+        ['Peso total:', f"{ruta.peso_total_kg} kg"],
+        ['Paradas:', str(ruta.numero_paradas)]
+    ]
+    
+    info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+    info_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Plan de cargue
+    elements.append(Paragraph("ORDEN DE CARGA (LIFO - Último en cargar, primero en entregar)", styles['Heading2']))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    for item in ruta.plan_cargue:
+        # Encabezado de cada item
+        item_title = f"Posición {item['orden_carga']} - Parada {item['orden_entrega']}: {item['cliente']}"
+        elements.append(Paragraph(item_title, styles['Heading3']))
+        
+        # Detalles
+        item_data = [
+            ['Dirección:', item['direccion']],
+            ['Peso:', f"{item['peso_total_kg']} kg"],
+            ['Productos:', ', '.join([f"{p['cantidad']}x {p['nombre']}" for p in item['productos']])]
+        ]
+        
+        item_table = Table(item_data, colWidths=[1.5*inch, 4.5*inch])
+        item_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e8f4f8')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+        ]))
+        elements.append(item_table)
+        elements.append(Spacer(1, 0.15*inch))
+    
+    # Generar PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="plan_cargue_ruta_{ruta.id}.pdf"'
+    return response
 
