@@ -14,13 +14,36 @@
     <h1 class="h2"><i class="fas fa-route me-2"></i>Ruta #{{ ruta.id }}</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <a href="{% url 'ruta_descargar_plan' ruta.id %}" class="btn btn-success">
+            <button type="button" class="btn btn-success" id="btnDescargarPlan">
                 <i class="fas fa-download me-2"></i>Descargar Plan de Cargue
-            </a>
+            </button>
         </div>
         <a href="{% url 'domicilios_home' %}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-2"></i>Volver
         </a>
+    </div>
+</div>
+
+<!-- Modal de Generación de Reporte -->
+<div class="modal fade" id="modalGenerandoReporte" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <h5 class="mb-3">Generando Reporte Inteligente</h5>
+                <p class="text-muted mb-2" id="estadoGeneracion">Analizando carga con IA...</p>
+                <div class="progress" style="height: 25px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" 
+                         id="progressBar"
+                         style="width: 0%">
+                        <span id="progressText">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -187,15 +210,52 @@
     </div>
 </div>
 
-<!-- Mapa de la Ruta -->
+<!-- Mapa de la Ruta e Instrucciones -->
 <div class="row mb-4">
-    <div class="col-12">
+    <div class="col-md-8">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-map me-2"></i>Mapa de la Ruta</h5>
             </div>
             <div class="card-body p-0">
-                <div id="map-ruta" style="height: 400px; width: 100%;"></div>
+                <div id="map-ruta" style="height: 500px; width: 100%;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-directions me-2"></i>Instrucciones de Navegación</h5>
+            </div>
+            <div class="card-body p-0">
+                <div id="instrucciones-container" style="max-height: 500px; overflow-y: auto;">
+                    {% if ruta.instrucciones_navegacion %}
+                        <div class="list-group list-group-flush">
+                            {% for inst in ruta.instrucciones_navegacion %}
+                            <div class="list-group-item list-group-item-action" style="cursor: pointer;" 
+                                 data-coords="{{ inst.coordenadas|safe }}" 
+                                 onclick="resaltarPaso({{ inst.paso }}, {{ inst.coordenadas|safe }})">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">
+                                        <span class="badge bg-primary me-2">{{ inst.paso }}</span>
+                                        {{ inst.instruccion }}
+                                    </h6>
+                                    <small class="text-muted">{{ inst.distancia_m }} m</small>
+                                </div>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>{{ inst.duracion_s|floatformat:0 }} seg
+                                </small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="p-3 text-center text-muted">
+                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                            <p>No hay instrucciones de navegación disponibles para esta ruta.</p>
+                            <small>Las nuevas rutas incluirán instrucciones paso a paso.</small>
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -352,8 +412,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const geometria = {{ ruta.geometria_ruta|safe }};
     const waypoints = {{ ruta.waypoints|safe }};
     
+    console.log('Geometria:', geometria);
+    console.log('Waypoints:', waypoints);
+    
+    // Crear un grupo para todos los elementos del mapa
+    const allMarkers = L.featureGroup();
+    
     // Dibujar la ruta
     if (geometria && geometria.coordinates) {
+        console.log('Dibujando ruta con', geometria.coordinates.length, 'puntos');
         const coords = geometria.coordinates.map(coord => [coord[1], coord[0]]);
         const polyline = L.polyline(coords, {
             color: '#667eea',
@@ -361,41 +428,68 @@ document.addEventListener('DOMContentLoaded', function() {
             opacity: 0.7
         }).addTo(map);
         
-        // Ajustar vista al recorrido
-        map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+        allMarkers.addLayer(polyline);
+    } else {
+        console.error('No hay geometría de ruta disponible');
     }
     
-    // Agregar marcadores
+    // Agregar marcadores de paradas
+    console.log('Agregando marcadores de paradas...');
+    const detallesData = [];
     {% for detalle in detalles %}
     {% if detalle.venta.latitud_entrega and detalle.venta.longitud_entrega %}
-    const marker{{ detalle.id }} = L.marker([
-        parseFloat('{{ detalle.venta.latitud_entrega }}'),
-        parseFloat('{{ detalle.venta.longitud_entrega }}')
-    ], {
-        icon: L.divIcon({
-            className: 'custom-marker',
-            html: '<div style="background-color: {% if detalle.entregado %}#28a745{% else %}#ffc107{% endif %}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">{{ detalle.orden_entrega }}</div>',
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
-        })
-    }).addTo(map);
-    
-    marker{{ detalle.id }}.bindPopup(`
-        <div style="min-width: 200px;">
-            <strong>Parada {{ detalle.orden_entrega }}</strong><br>
-            <strong>Cliente:</strong> {{ detalle.venta.cliente.nombre|default:"Sin cliente" }}<br>
-            <strong>Dirección:</strong> {{ detalle.venta.direccion_entrega }}<br>
-            <strong>Peso:</strong> {{ detalle.peso_productos_kg }} kg<br>
-            <strong>Estado:</strong> {% if detalle.entregado %}<span style="color: green;">✓ Entregado</span>{% else %}<span style="color: orange;">⏳ Pendiente</span>{% endif %}
-        </div>
-    `);
+    detallesData.push({
+        id: {{ detalle.id }},
+        orden: {{ detalle.orden_entrega }},
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Se aplica .replace(',', '.') ANTES de parseFloat para convertir la coma en punto
+        lat: parseFloat('{{ detalle.venta.latitud_entrega }}'.replace(',', '.')),
+        lng: parseFloat('{{ detalle.venta.longitud_entrega }}'.replace(',', '.')),
+        // --- FIN DE LA CORRECCIÓN ---
+        cliente: '{{ detalle.venta.cliente.nombre|default:"Sin cliente"|escapejs }}',
+        direccion: '{{ detalle.venta.direccion_entrega|escapejs }}',
+        // --- CORRECCIÓN ADICIONAL PARA EL PESO ---
+        peso: parseFloat('{{ detalle.peso_productos_kg }}'.replace(',', '.')),
+        // --- FIN DE LA CORRECCIÓN ADICIONAL ---
+        entregado: {% if detalle.entregado %}true{% else %}false{% endif %}
+    });
     {% endif %}
     {% endfor %}
     
+    console.log('Detalles a mostrar:', detallesData.length);
+    
+    detallesData.forEach(detalle => {
+        // Esta línea ahora debería mostrar las coordenadas completas
+        console.log(`Creando marcador para parada ${detalle.orden}:`, detalle.lat, detalle.lng);
+        
+        const marker = L.marker([detalle.lat, detalle.lng], {
+            icon: L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="background-color: ${detalle.entregado ? '#28a745' : '#ffc107'}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">${detalle.orden}</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            })
+        }).addTo(map);
+        
+        allMarkers.addLayer(marker);
+        
+        marker.bindPopup(`
+            <div style="min-width: 200px;">
+                <strong>Parada ${detalle.orden}</strong><br>
+                <strong>Cliente:</strong> ${detalle.cliente}<br>
+                <strong>Dirección:</strong> ${detalle.direccion}<br>
+                <strong>Peso:</strong> ${detalle.peso} kg<br>
+                <strong>Estado:</strong> ${detalle.entregado ? '<span style="color: green;">✓ Entregado</span>' : '<span style="color: orange;">⏳ Pendiente</span>'}
+            </div>
+        `);
+    });
+    
     // Agregar marcador de sucursal (punto de inicio)
     const sucursalMarker = L.marker([
-        parseFloat('{{ ruta.sucursal_origen.latitud }}'),
-        parseFloat('{{ ruta.sucursal_origen.longitud }}')
+        // --- INICIO DE LA CORRECCIÓN ---
+        parseFloat('{{ ruta.sucursal_origen.latitud }}'.replace(',', '.')),
+        parseFloat('{{ ruta.sucursal_origen.longitud }}'.replace(',', '.'))
+        // --- FIN DE LA CORRECCIÓN ---
     ], {
         icon: L.divIcon({
             className: 'custom-marker',
@@ -405,6 +499,8 @@ document.addEventListener('DOMContentLoaded', function() {
         })
     }).addTo(map);
     
+    allMarkers.addLayer(sucursalMarker);
+    
     sucursalMarker.bindPopup(`
         <div>
             <strong>🏢 Punto de Inicio</strong><br>
@@ -412,6 +508,89 @@ document.addEventListener('DOMContentLoaded', function() {
             {{ ruta.sucursal_origen.direccion }}
         </div>
     `);
+    
+    // Ajustar vista para mostrar todos los elementos
+    if (allMarkers.getLayers().length > 0) {
+        map.fitBounds(allMarkers.getBounds(), { padding: [50, 50] });
+        console.log('Vista ajustada a todos los elementos');
+    }
+    
+    // Agregar marcadores para las instrucciones de navegación
+    const instrucciones = {{ ruta.instrucciones_navegacion|safe|default:"[]" }};
+    const marcadoresInstrucciones = {};
+    
+    instrucciones.forEach(inst => {
+        if (inst.coordenadas && inst.coordenadas.length === 2) {
+            const marker = L.circleMarker([inst.coordenadas[1], inst.coordenadas[0]], {
+                radius: 4,
+                fillColor: '#3b82f6',
+                color: '#fff',
+                weight: 1,
+                opacity: 0.8,
+                fillOpacity: 0.6
+            }).addTo(map);
+            
+            marker.bindPopup(`
+                <div style="min-width: 150px;">
+                    <strong>Paso ${inst.paso}</strong><br>
+                    ${inst.instruccion}<br>
+                    <small>${inst.distancia_m} m - ${inst.duracion_s} seg</small>
+                </div>
+            `);
+            
+            marcadoresInstrucciones[inst.paso] = marker;
+        }
+    });
+    
+    // Función global para resaltar un paso
+    window.resaltarPaso = function(paso, coords) {
+        // Resaltar el marcador
+        if (marcadoresInstrucciones[paso]) {
+            marcadoresInstrucciones[paso].openPopup();
+            map.setView([coords[1], coords[0]], 16, { animate: true });
+        }
+    };
+    
+    // Manejar descarga de reporte con modal
+    document.getElementById('btnDescargarPlan').addEventListener('click', function() {
+        const modal = new bootstrap.Modal(document.getElementById('modalGenerandoReporte'));
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const estadoGeneracion = document.getElementById('estadoGeneracion');
+        
+        modal.show();
+        
+        // Simular progreso
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 10;
+            progressBar.style.width = progress + '%';
+            progressText.textContent = progress + '%';
+            
+            if (progress === 30) {
+                estadoGeneracion.textContent = 'Analizando productos y pesos...';
+            } else if (progress === 60) {
+                estadoGeneracion.textContent = 'Generando recomendaciones con IA...';
+            } else if (progress === 90) {
+                estadoGeneracion.textContent = 'Creando documento PDF...';
+            }
+            
+            if (progress >= 100) {
+                clearInterval(interval);
+            }
+        }, 300);
+        
+        // Descargar el PDF
+        window.location.href = '{% url "ruta_descargar_plan" ruta.id %}';
+        
+        // Cerrar modal después de 3 segundos
+        setTimeout(() => {
+            modal.hide();
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+            estadoGeneracion.textContent = 'Analizando carga con IA...';
+        }, 3000);
+    });
 });
 </script>
 {% endblock %}

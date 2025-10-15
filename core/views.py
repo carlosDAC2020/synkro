@@ -1089,6 +1089,42 @@ def api_calcular_ruta_optima(request):
         peso_total_ruta = sum(item['peso_total_kg'] for item in plan_cargue)
         volumen_total_ruta = sum(item['volumen_total_m3'] for item in plan_cargue)
         
+        # Extraer instrucciones de navegación paso a paso
+        instrucciones = []
+        if 'legs' in route:
+            paso_numero = 1
+            for leg_idx, leg in enumerate(route['legs']):
+                if 'steps' in leg:
+                    for step in leg['steps']:
+                        if 'maneuver' in step:
+                            maneuver = step['maneuver']
+
+                            # Obtenemos el nombre de la calle del paso actual
+                            street_name = step.get('name', '')
+                            
+                            # Obtenemos la instrucción base de OSRM
+                            base_instruction = maneuver.get('instruction', 'Continuar')
+                            
+                            # Creamos la instrucción final mejorada
+                            final_instruction = base_instruction
+                            
+                            # Si la instrucción es genérica pero tenemos nombre de calle, la mejoramos.
+                            # Por ejemplo, cambiamos "Continuar" por "Continuar por Avenida Principal".
+                            if base_instruction.lower() in ['continue', 'go straight', 'continuar'] and street_name:
+                                final_instruction = f"Continúa por {street_name}"
+
+                            instruccion = {
+                                'paso': paso_numero,
+                                'distancia_m': round(step.get('distance', 0)),
+                                'duracion_s': round(step.get('duration', 0)),
+                                'instruccion': final_instruction,
+                                'tipo': maneuver.get('type', 'turn'),
+                                'modificador': maneuver.get('modifier', ''),
+                                'coordenadas': maneuver.get('location', [])
+                            }
+                            instrucciones.append(instruccion)
+                            paso_numero += 1
+        
         return JsonResponse({
             'success': True,
             'ruta': {
@@ -1096,7 +1132,8 @@ def api_calcular_ruta_optima(request):
                 'tiempo_min': round(route['duration'] / 60),
                 'geometria': route['geometry'],
                 'waypoints': waypoints,
-                'trafico': route.get('annotations', {})
+                'trafico': route.get('annotations', {}),
+                'instrucciones': instrucciones
             },
             'plan_cargue': plan_cargue,
             'peso_total_kg': round(peso_total_ruta, 2),
@@ -1132,6 +1169,7 @@ def api_guardar_ruta(request):
                 geometria_ruta=data['geometria'],
                 estado_trafico=data.get('trafico', {}),
                 plan_cargue=data['plan_cargue'],
+                instrucciones_navegacion=data.get('instrucciones', []),
                 peso_total_kg=Decimal(str(data['peso_total_kg'])),
                 volumen_total_m3=Decimal(str(data['volumen_total_m3'])),
                 estado='PLANIFICADA'
@@ -1172,6 +1210,21 @@ def ruta_descargar_plan_cargue(request, ruta_id):
     
     ruta = get_object_or_404(RutaEntrega, id=ruta_id)
     detalles = ruta.detalles.select_related('venta__cliente').order_by('orden_entrega')
+    
+    # Generar análisis inteligente con Gemini
+    analisis = None
+    try:
+        from core.services.gemini_analyzer import GeminiCargaAnalyzer
+        analyzer = GeminiCargaAnalyzer()
+        ruta_info = {
+            'distancia_km': float(ruta.distancia_total_km),
+            'tiempo_min': ruta.tiempo_estimado_min,
+            'num_paradas': ruta.numero_paradas
+        }
+        analisis = analyzer.analizar_carga(ruta.plan_cargue, ruta_info)
+    except Exception as e:
+        print(f"Error generando análisis con Gemini: {e}")
+        analisis = None
     
     # Crear el PDF con márgenes personalizados
     buffer = BytesIO()
@@ -1303,6 +1356,273 @@ def ruta_descargar_plan_cargue(request, ruta_id):
     )
     elements.append(Paragraph("💡 Consulta el mapa interactivo en la vista web para ver la ruta completa", note_style))
     elements.append(Spacer(1, 0.4*inch))
+    
+    # Instrucciones de Navegación
+    if ruta.instrucciones_navegacion:
+        elements.append(Paragraph("INSTRUCCIONES DE NAVEGACIÓN", section_title_style))
+        elements.append(Spacer(1, 0.15*inch))
+        
+        # Crear tabla de instrucciones
+        instrucciones_data = [['#', 'Instrucción', 'Distancia', 'Tiempo']]
+        for inst in ruta.instrucciones_navegacion[:15]:  # Limitar a 15 para no saturar el PDF
+            instrucciones_data.append([
+                str(inst['paso']),
+                inst['instruccion'][:50] + '...' if len(inst['instruccion']) > 50 else inst['instruccion'],
+                f"{inst['distancia_m']} m",
+                f"{inst['duracion_s']} s"
+            ])
+        
+        instrucciones_table = Table(instrucciones_data, colWidths=[0.5*inch, 4*inch, 1*inch, 1*inch])
+        instrucciones_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3b82f6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ]))
+        elements.append(instrucciones_table)
+        
+        if len(ruta.instrucciones_navegacion) > 15:
+            elements.append(Paragraph(f"<i>Mostrando las primeras 15 de {len(ruta.instrucciones_navegacion)} instrucciones. Consulta la vista web para ver todas.</i>", note_style))
+        
+        elements.append(Spacer(1, 0.4*inch))
+    
+    # GUÍA INTELIGENTE DE CARGA CON GEMINI
+    if analisis:
+        elements.append(PageBreak())
+        elements.append(Paragraph("📋 GUÍA DE CARGA PARA EL REPARTIDOR", section_title_style))
+        elements.append(Spacer(1, 0.15*inch))
+        
+        # Resumen para el repartidor
+        resumen_style = ParagraphStyle(
+            'ResumenRepartidor',
+            parent=styles['Normal'],
+            fontSize=12,
+            textColor=colors.HexColor('#1e293b'),
+            spaceAfter=12,
+            spaceBefore=8,
+            leftIndent=15,
+            rightIndent=15,
+            backColor=colors.HexColor('#dbeafe'),
+            borderColor=colors.HexColor('#3b82f6'),
+            borderWidth=2,
+            borderPadding=15,
+            fontName='Helvetica-Bold'
+        )
+        elements.append(Paragraph(f"📢 {analisis.resumen_para_repartidor}", resumen_style))
+        elements.append(Spacer(1, 0.15*inch))
+        
+        # Nivel de dificultad y tiempo
+        info_row = [[
+            Paragraph(f"<b>Dificultad:</b> {analisis.nivel_dificultad}", styles['Normal']),
+            Paragraph(f"<b>Tiempo de carga:</b> {analisis.tiempo_estimado_carga}", styles['Normal'])
+        ]]
+        info_table = Table(info_row, colWidths=[3.25*inch, 3.25*inch])
+        dificultad_colors = {
+            'Fácil': colors.HexColor('#10b981'),
+            'Normal': colors.HexColor('#f59e0b'),
+            'Difícil': colors.HexColor('#ef4444')
+        }
+        dificultad_color = dificultad_colors.get(analisis.nivel_dificultad, colors.HexColor('#6b7280'))
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), dificultad_color),
+            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#3b82f6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # PASOS DE MONTAJE
+        elements.append(Paragraph("🔧 PASOS PARA CARGAR EL VEHÍCULO", section_title_style))
+        elements.append(Spacer(1, 0.15*inch))
+        
+        for paso in analisis.pasos_montaje:
+            paso_data = [[
+                Paragraph(f"<b>PASO {paso.numero}</b>", ParagraphStyle('PasoNum', parent=styles['Normal'], fontSize=11, textColor=colors.white, fontName='Helvetica-Bold')),
+                Paragraph(f"<b>{paso.accion}</b>", styles['Normal'])
+            ]]
+            paso_header = Table(paso_data, colWidths=[0.8*inch, 5.7*inch])
+            paso_header.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#3b82f6')),
+                ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#eff6ff')),
+                ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+                ('ALIGN', (1, 0), (1, 0), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (1, 0), (1, 0), 12),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
+            ]))
+            elements.append(paso_header)
+            
+            paso_body_data = [[
+                Paragraph(f"<b>📍 Ubicación:</b> {paso.ubicacion}", styles['Normal'])
+            ], [
+                Paragraph(f"<b>💡 Por qué:</b> {paso.razon}", styles['Normal'])
+            ]]
+            paso_body = Table(paso_body_data, colWidths=[6.5*inch])
+            paso_body.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('LEFTPADDING', (0, 0), (-1, -1), 12),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
+                ('LINEABOVE', (0, 1), (-1, 1), 0.5, colors.HexColor('#e2e8f0')),
+            ]))
+            elements.append(paso_body)
+            elements.append(Spacer(1, 0.12*inch))
+        
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # DISTRIBUCIÓN DE PESO
+        elements.append(Paragraph("⚖️ CÓMO DISTRIBUIR EL PESO", section_title_style))
+        elements.append(Spacer(1, 0.1*inch))
+        peso_style = ParagraphStyle(
+            'DistribucionPeso',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#1e293b'),
+            leftIndent=12,
+            rightIndent=12,
+            backColor=colors.HexColor('#f0fdf4'),
+            borderColor=colors.HexColor('#10b981'),
+            borderWidth=1,
+            borderPadding=12
+        )
+        elements.append(Paragraph(analisis.distribucion_peso, peso_style))
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # PRODUCTOS ESPECIALES
+        if analisis.productos_especiales:
+            elements.append(Paragraph("⚠️ PRODUCTOS QUE NECESITAN CUIDADO ESPECIAL", section_title_style))
+            elements.append(Spacer(1, 0.1*inch))
+            productos_text = '<br/>'.join([f"• {prod}" for prod in analisis.productos_especiales])
+            productos_style = ParagraphStyle(
+                'ProductosEspeciales',
+                parent=styles['Normal'],
+                fontSize=10,
+                textColor=colors.HexColor('#92400e'),
+                backColor=colors.HexColor('#fef3c7'),
+                borderColor=colors.HexColor('#f59e0b'),
+                borderWidth=2,
+                borderPadding=12,
+                leftIndent=12
+            )
+            elements.append(Paragraph(productos_text, productos_style))
+            elements.append(Spacer(1, 0.3*inch))
+        
+        # Recomendaciones
+        elements.append(Paragraph("💡 RECOMENDACIONES", section_title_style))
+        elements.append(Spacer(1, 0.15*inch))
+        
+        for idx, rec in enumerate(analisis.recomendaciones, 1):
+            # Color según prioridad
+            prioridad_colors = {
+                'Alta': colors.HexColor('#dc2626'),
+                'Media': colors.HexColor('#f59e0b'),
+                'Baja': colors.HexColor('#10b981')
+            }
+            prioridad_color = prioridad_colors.get(rec.prioridad, colors.HexColor('#6b7280'))
+            
+            rec_data = [[
+                Paragraph(f"<b>{idx}. {rec.titulo}</b>", styles['Normal']),
+                Paragraph(f"<b>{rec.prioridad}</b>", ParagraphStyle('PrioridadTag', parent=styles['Normal'], textColor=colors.white, fontSize=9, alignment=TA_CENTER))
+            ]]
+            
+            rec_header = Table(rec_data, colWidths=[5.5*inch, 1*inch])
+            rec_header.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#f8fafc')),
+                ('BACKGROUND', (1, 0), (1, 0), prioridad_color),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (0, 0), 12),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
+            ]))
+            elements.append(rec_header)
+            
+            rec_body_data = [[
+                Paragraph(f"<b>Categoría:</b> {rec.categoria}", styles['Normal']),
+            ], [
+                Paragraph(rec.descripcion, styles['Normal'])
+            ]]
+            
+            rec_body = Table(rec_body_data, colWidths=[6.5*inch])
+            rec_body.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 12),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
+                ('LINEABOVE', (0, 1), (-1, 1), 0.5, colors.HexColor('#e2e8f0')),
+            ]))
+            elements.append(rec_body)
+            elements.append(Spacer(1, 0.15*inch))
+        
+        # CHECKLIST ANTES DE SALIR
+        if analisis.checklist_antes_salir:
+            elements.append(PageBreak())
+            elements.append(Paragraph("✅ CHECKLIST ANTES DE SALIR", section_title_style))
+            elements.append(Spacer(1, 0.15*inch))
+            
+            checklist_text = '<br/>'.join(analisis.checklist_antes_salir)
+            checklist_style = ParagraphStyle(
+                'Checklist',
+                parent=styles['Normal'],
+                fontSize=11,
+                textColor=colors.HexColor('#065f46'),
+                backColor=colors.HexColor('#d1fae5'),
+                borderColor=colors.HexColor('#10b981'),
+                borderWidth=2,
+                borderPadding=15,
+                leftIndent=12,
+                fontName='Helvetica-Bold'
+            )
+            elements.append(Paragraph(checklist_text, checklist_style))
+            elements.append(Spacer(1, 0.3*inch))
+        
+        # TIPS PARA LAS ENTREGAS
+        if analisis.tips_entrega:
+            elements.append(Paragraph("🎯 TIPS PARA LAS ENTREGAS", section_title_style))
+            elements.append(Spacer(1, 0.15*inch))
+            
+            for idx, tip in enumerate(analisis.tips_entrega, 1):
+                tip_style = ParagraphStyle(
+                    'Tip',
+                    parent=styles['Normal'],
+                    fontSize=10,
+                    textColor=colors.HexColor('#1e293b'),
+                    backColor=colors.HexColor('#fef9c3'),
+                    borderColor=colors.HexColor('#eab308'),
+                    borderWidth=1,
+                    borderPadding=10,
+                    leftIndent=10,
+                    spaceAfter=8
+                )
+                elements.append(Paragraph(f"<b>{idx}.</b> {tip}", tip_style))
+            elements.append(Spacer(1, 0.2*inch))
+        
+        elements.append(PageBreak())
     
     # Plan de cargue
     elements.append(Paragraph("ORDEN DE CARGA (LIFO)", section_title_style))

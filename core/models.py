@@ -446,6 +446,7 @@ class RutaEntrega(models.Model):
     # Datos adicionales para logística
     estado_trafico = models.JSONField(default=dict, blank=True, help_text="Información de tráfico al momento de planificar")
     plan_cargue = models.JSONField(default=list, blank=True, help_text="Plan de cargue LIFO con orden de productos")
+    instrucciones_navegacion = models.JSONField(default=list, blank=True, help_text="Instrucciones paso a paso de navegación")
     peso_total_kg = models.DecimalField(max_digits=8, decimal_places=2, default=0, help_text="Peso total de la carga")
     volumen_total_m3 = models.DecimalField(max_digits=8, decimal_places=3, default=0, help_text="Volumen total de la carga")
     
