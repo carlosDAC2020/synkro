@@ -35,7 +35,7 @@ pip install -r requirements.txt
 La API key ya está configurada en tu archivo `.env`:
 
 ```env
-GEMINI_API_KEY=AIzaSyBEgA-7FQjO8YzKBH8akPB2wqQoBLZU2p0
+GEMINI_API_KEY=mi clave
 ```
 
 ### 3. Aplicar migraciones (si es necesario)
