@@ -88,14 +88,65 @@ class ProductoForm(forms.ModelForm):
 class VentaForm(forms.ModelForm):
     class Meta:
         model = Venta
-        fields = ['cliente', 'estado']
+        fields = [
+            'cliente', 
+            'estado', 
+            'requiere_domicilio', 
+            'direccion_entrega',
+            'prioridad_entrega',
+            'ventana_tiempo_inicio',
+            'ventana_tiempo_fin',
+        ]
+        
         widgets = {
-            'cliente': forms.Select(attrs={
+             'cliente': forms.Select(attrs={
                 'class': 'form-select'
             }),
             'estado': forms.Select(attrs={
                 'class': 'form-select'
             }),
+            'direccion_entrega': forms.Textarea(attrs={'rows': 3}),
+            # --- WIDGETS PARA LOS CAMPOS DE HORA ---
+            'ventana_tiempo_inicio': forms.TimeInput(attrs={'type': 'time'}),
+            'ventana_tiempo_fin': forms.TimeInput(attrs={'type': 'time'}),
+        }
+        
+        labels = {
+            'requiere_domicilio': '¿Requiere entrega a domicilio?',
+            'direccion_entrega': 'Dirección de Entrega',
+            'prioridad_entrega': 'Prioridad de la Entrega',
+            'ventana_tiempo_inicio': 'Inicio de Horario de Entrega',
+            'ventana_tiempo_fin': 'Fin de Horario de Entrega',
+        }
+        
+        help_texts = {
+            'ventana_tiempo_inicio': 'Opcional. Hora preferida para iniciar la entrega.',
+            'ventana_tiempo_fin': 'Opcional. Hora límite para realizar la entrega.',
+        }
+
+class VentaDomicilioForm(forms.ModelForm):
+    """
+    Formulario específico para editar los detalles de domicilio de una venta existente.
+    """
+    class Meta:
+        model = Venta
+        fields = [
+            'requiere_domicilio', 
+            'direccion_entrega',
+            'latitud_entrega',
+            'longitud_entrega',
+            'prioridad_entrega',
+            'ventana_tiempo_inicio',
+            'ventana_tiempo_fin'
+        ]
+        widgets = {
+            'requiere_domicilio': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'direccion_entrega': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'latitud_entrega': forms.NumberInput(attrs={'class': 'form-control'}),
+            'longitud_entrega': forms.NumberInput(attrs={'class': 'form-control'}),
+            'prioridad_entrega': forms.Select(attrs={'class': 'form-select'}),
+            'ventana_tiempo_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'ventana_tiempo_fin': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
         }
 
 class VentaDetalleForm(forms.ModelForm):
@@ -316,23 +367,55 @@ class SucursalForm(forms.ModelForm):
 class RepartidorForm(forms.ModelForm):
     class Meta:
         model = Repartidor
-        fields = ['nombre', 'telefono', 'documento', 'estado']
+        fields = [
+            'nombre', 
+            'documento', 
+            'telefono', 
+            'estado',
+            'capacidad_maxima_kg',
+            'capacidad_maxima_m3',
+        ]
+        
+        # Define las etiquetas que se mostrarán en el formulario
+        labels = {
+            'nombre': 'Nombre Completo',
+            'documento': 'Documento de Identidad',
+            'capacidad_maxima_kg': 'Capacidad Máxima (kg)',
+            'capacidad_maxima_m3': 'Capacidad Máxima (m³)',
+        }
+
+        # Aquí está la magia: añadimos clases y placeholders a los campos
         widgets = {
             'nombre': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control', 
                 'placeholder': 'Nombre completo del repartidor'
-            }),
-            'telefono': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Teléfono de contacto'
             }),
             'documento': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Número de documento (cédula)'
             }),
-            'estado': forms.Select(attrs={
-                'class': 'form-select'
+            'telefono': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Teléfono de contacto'
             }),
+            'estado': forms.Select(attrs={
+                'class': 'form-select' # Para los <select> se usa form-select
+            }),
+            'capacidad_maxima_kg': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: 1000.0'
+            }),
+            'capacidad_maxima_m3': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: 5.0'
+            }),
+        }
+        
+        # Textos de ayuda que aparecerán debajo de los campos
+        help_texts = {
+            'documento': 'Número de cédula o documento único.',
+            'capacidad_maxima_kg': 'Capacidad de carga del vehículo en kilogramos.',
+            'capacidad_maxima_m3': 'Capacidad de carga del vehículo en metros cúbicos.',
         }
 
 

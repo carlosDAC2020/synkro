@@ -29,6 +29,25 @@
     .loading.visible { display: block; }
     #plan-cargue-container { max-height: 400px; overflow-y: auto; }
     .cargue-item { background: #f8f9fa; border-left: 4px solid var(--primary-color); padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+    .custom-marker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        color: white;
+        font-weight: bold;
+        font-size: 14px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        border: 3px solid white;
+    }
+
+    .marker-sucursal {
+        background-color: #667eea; /* Azul/Morado */
+    }
+
+    .marker-entrega {
+        background-color: #34d399; /* Verde */
+    }
 </style>
 {% endblock %}
 
@@ -59,13 +78,34 @@
                 
                 <div class="mb-3">
                     <label for="repartidor-select" class="form-label">Repartidor</label>
-                    <select id="repartidor-select" class="form-select">
-                        <option value="">Sin asignar</option>
+                    <select id="repartidor-select" class="form-select" required>
+                        <option value="" disabled selected>Selecciona un repartidor</option>
                         {% for repartidor in repartidores %}
-                        <option value="{{ repartidor.id }}">{{ repartidor.nombre }}</option>
+                        <option 
+                            value="{{ repartidor.id }}" 
+                            data-capacidad-kg="{{ repartidor.capacidad_maxima_kg|stringformat:"f" }}"
+                            data-capacidad-m3="{{ repartidor.capacidad_maxima_m3|stringformat:"f" }}">
+                            {{ repartidor.nombre }}
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
+
+                <!-- INICIO: Bloque de visualización de capacidad y carga -->
+                <div id="capacidad-info" class="mb-3" style="display: none;">
+                    <div class="d-flex justify-content-between small">
+                        <span>Capacidad del Vehículo</span>
+                        <span id="capacidad-vehiculo" class="fw-bold"></span>
+                    </div>
+                    <div class="progress" style="height: 12px;" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <div id="carga-progreso" class="progress-bar bg-success" style="width: 0%;"></div>
+                    </div>
+                    <div class="d-flex justify-content-between small mt-1">
+                        <span>Carga Actual</span>
+                        <span id="carga-actual" class="fw-bold">0 kg</span>
+                    </div>
+                </div>
+                <!-- FIN: Bloque de visualización de capacidad y carga -->
                 
                 <div class="mb-3">
                     <label for="fecha-entrega" class="form-label">Fecha de Entrega</label>
@@ -166,21 +206,28 @@
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
 <script>
+// ===== SOLUCIÓN COMPLETA: REEMPLAZAR TODAS LAS FUNCIONES EN EL TEMPLATE =====
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Variables globales
-    let mapa, controlDeRuta, ventasPendientes = [], rutaCalculada = null;
+    // --- VARIABLES GLOBALES ---
+    let mapa, ventasPendientes = [], rutaCalculada = null;
     const sucursalSelect = document.getElementById('sucursal-select');
+    const repartidorSelect = document.getElementById('repartidor-select');
+    const fechaInput = document.getElementById('fecha-entrega');
+    const calcularBtn = document.getElementById('calcular-btn');
+    const guardarBtn = document.getElementById('guardar-btn');
+    let capaRuta = null;
+    
+    // --- INICIALIZACIÓN DEL MAPA ---
     const selectedOption = sucursalSelect.options[sucursalSelect.selectedIndex];
     const initialLat = parseFloat(selectedOption.dataset.lat);
     const initialLng = parseFloat(selectedOption.dataset.lng);
     
-    // Inicializar mapa
     mapa = L.map('mapa').setView([initialLat, initialLng], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(mapa);
     
-    // Marcar sucursal inicial
     let marcadorSucursal = L.marker([initialLat, initialLng], {
         icon: L.divIcon({
             html: '<div style="background: #667eea; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><i class="fas fa-store"></i></div>',
@@ -189,8 +236,22 @@ document.addEventListener('DOMContentLoaded', function() {
         })
     }).addTo(mapa).bindPopup('<b>Sucursal de Salida</b>');
     
-    // Actualizar marcador al cambiar sucursal
-    sucursalSelect.addEventListener('change', function() {
+    const today = new Date().toISOString().split('T')[0];
+    fechaInput.value = today;
+    fechaInput.min = today;
+    
+    // --- EVENT LISTENERS ---
+    sucursalSelect.addEventListener('change', handleSucursalChange);
+    repartidorSelect.addEventListener('change', handleRepartidorChange);
+    calcularBtn.addEventListener('click', handleCalcularRuta);
+    guardarBtn.addEventListener('click', handleGuardarRuta);
+
+    // --- CARGA INICIAL ---
+    cargarVentasPendientes();
+
+    // ========== FUNCIONES PRINCIPALES ==========
+
+    function handleSucursalChange() {
         const option = this.options[this.selectedIndex];
         const lat = parseFloat(option.dataset.lat);
         const lng = parseFloat(option.dataset.lng);
@@ -203,47 +264,52 @@ document.addEventListener('DOMContentLoaded', function() {
             })
         }).addTo(mapa).bindPopup('<b>Sucursal de Salida</b>');
         mapa.setView([lat, lng], 13);
-    });
-    
-    // Establecer fecha mínima (hoy)
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('fecha-entrega').value = today;
-    document.getElementById('fecha-entrega').min = today;
-    
-    // Cargar ventas pendientes
-    cargarVentasPendientes();
+    }
+
+    function handleRepartidorChange() {
+        actualizarInfoCapacidad();
+        actualizarEstadisticas();
+    }
     
     async function cargarVentasPendientes() {
         try {
             const response = await fetch('{% url "api_ventas_pendientes" %}');
             const data = await response.json();
             ventasPendientes = data.ventas;
+            console.log(`📦 Ventas pendientes cargadas: ${ventasPendientes.length}`);
             renderizarVentas();
         } catch (error) {
-            console.error('Error:', error);
+            console.error('❌ Error cargando ventas:', error);
             document.getElementById('ventas-container').innerHTML = '<div class="alert alert-danger">Error al cargar ventas</div>';
         }
     }
     
     function renderizarVentas() {
         const container = document.getElementById('ventas-container');
-        
         if (ventasPendientes.length === 0) {
             container.innerHTML = '<div class="text-center py-3 text-muted">No hay ventas pendientes de domicilio</div>';
             return;
         }
         
         container.innerHTML = '';
-        ventasPendientes.forEach(venta => {
+        ventasPendientes.forEach((venta, index) => {
             const item = document.createElement('div');
             item.className = 'venta-item';
+            item.dataset.ventaId = venta.id;
+
+            let ventanaTiempoHTML = '';
+            if (venta.ventana_inicio && venta.ventana_fin) {
+                ventanaTiempoHTML = `<span class="badge text-bg-secondary ms-2"><i class="fas fa-clock me-1"></i>${venta.ventana_inicio} - ${venta.ventana_fin}</span>`;
+            }
+
             item.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <div>
                         <span class="badge bg-primary me-2">#${venta.id}</span>
                         <span class="priority ${venta.prioridad}">${venta.prioridad.toUpperCase()}</span>
+                        ${ventanaTiempoHTML}
                     </div>
-                    <input type="checkbox" class="form-check-input" value="${venta.id}">
+                    <input type="checkbox" class="form-check-input" value="${venta.id}" data-index="${index}">
                 </div>
                 <div class="fw-bold">${venta.cliente}</div>
                 <div class="small text-muted">${venta.direccion}</div>
@@ -253,110 +319,270 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
             
-            item.addEventListener('click', (e) => {
-                if (e.target.type !== 'checkbox') {
-                    const checkbox = item.querySelector('input');
-                    checkbox.checked = !checkbox.checked;
-                    item.classList.toggle('selected', checkbox.checked);
-                    actualizarEstadisticas();
-                }
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            
+            // Evento para todo el item (excepto el checkbox)
+            item.addEventListener('click', function(e) {
+                // Si el click es en el checkbox mismo, no hacer nada (dejarlo manejar su propio evento)
+                if (e.target === checkbox) return;
+                
+                // Toggle del checkbox
+                checkbox.checked = !checkbox.checked;
+                item.classList.toggle('selected', checkbox.checked);
+                
+                console.log(`${checkbox.checked ? '✅ Seleccionada' : '❌ Deseleccionada'} venta #${venta.id}`);
+                
+                actualizarBarraDeCarga();
+                actualizarEstadisticas();
             });
             
-            const checkbox = item.querySelector('input');
-            checkbox.addEventListener('change', () => {
-                item.classList.toggle('selected', checkbox.checked);
+            // Evento específico del checkbox
+            checkbox.addEventListener('change', function(e) {
+                item.classList.toggle('selected', this.checked);
+                console.log(`${this.checked ? '✅ Seleccionada' : '❌ Deseleccionada'} venta #${venta.id} (checkbox)`);
+                actualizarBarraDeCarga();
                 actualizarEstadisticas();
             });
             
             container.appendChild(item);
         });
         
+        console.log(`✅ ${ventasPendientes.length} ventas renderizadas`);
         actualizarEstadisticas();
     }
     
+    function actualizarInfoCapacidad() {
+        const selectedRepartidor = repartidorSelect.options[repartidorSelect.selectedIndex];
+        const capacidadInfoDiv = document.getElementById('capacidad-info');
+        
+        if (selectedRepartidor && selectedRepartidor.value) {
+            const capacidadKg = parseFloat(selectedRepartidor.dataset.capacidadKg);
+            document.getElementById('capacidad-vehiculo').textContent = `${capacidadKg.toFixed(2)} kg`;
+            capacidadInfoDiv.style.display = 'block';
+            actualizarBarraDeCarga();
+        } else {
+            capacidadInfoDiv.style.display = 'none';
+        }
+    }
+
+    function actualizarBarraDeCarga() {
+        const selectedRepartidor = repartidorSelect.options[repartidorSelect.selectedIndex];
+        if (!selectedRepartidor || !selectedRepartidor.value) return 0;
+
+        const capacidadKg = parseFloat(selectedRepartidor.dataset.capacidadKg);
+        const checkboxes = document.querySelectorAll('#ventas-container input[type="checkbox"]:checked');
+        let cargaTotalKg = 0;
+
+        console.log(`⚖️ Calculando carga: ${checkboxes.length} ventas seleccionadas`);
+
+        checkboxes.forEach(cb => {
+            const venta = ventasPendientes.find(v => v.id == cb.value);
+            if (venta) {
+                cargaTotalKg += venta.peso_total_kg;
+                console.log(`  - Venta #${venta.id}: ${venta.peso_total_kg} kg`);
+            }
+        });
+        
+        console.log(`  📊 Total: ${cargaTotalKg.toFixed(2)} kg / ${capacidadKg} kg`);
+        
+        document.getElementById('carga-actual').textContent = `${cargaTotalKg.toFixed(2)} kg`;
+
+        const porcentajeCarga = capacidadKg > 0 ? (cargaTotalKg / capacidadKg) * 100 : 0;
+        const barraProgreso = document.getElementById('carga-progreso');
+        barraProgreso.style.width = `${Math.min(porcentajeCarga, 100)}%`;
+        barraProgreso.parentElement.setAttribute('aria-valuenow', porcentajeCarga);
+        
+        barraProgreso.classList.remove('bg-success', 'bg-warning', 'bg-danger');
+        document.getElementById('carga-actual').classList.remove('text-danger');
+
+        if (porcentajeCarga > 100) {
+            barraProgreso.classList.add('bg-danger');
+            document.getElementById('carga-actual').classList.add('text-danger');
+        } else if (porcentajeCarga > 85) {
+            barraProgreso.classList.add('bg-warning');
+        } else {
+            barraProgreso.classList.add('bg-success');
+        }
+        return cargaTotalKg;
+    }
+
     function actualizarEstadisticas() {
-        const seleccionadas = document.querySelectorAll('#ventas-container input:checked').length;
+        const checkboxes = document.querySelectorAll('#ventas-container input[type="checkbox"]:checked');
+        const seleccionadasCount = checkboxes.length;
+        const repartidorSeleccionado = !!repartidorSelect.value;
+        
+        console.log(`📊 Estadísticas: ${seleccionadasCount} seleccionadas de ${ventasPendientes.length}`);
+        
+        const cargaTotal = actualizarBarraDeCarga();
+        const option = repartidorSelect.options[repartidorSelect.selectedIndex];
+        const capacidad = option && option.value ? parseFloat(option.dataset.capacidadKg) : 0;
+        const cargaExcedida = cargaTotal > capacidad;
+
         document.getElementById('total-ventas').textContent = ventasPendientes.length;
-        document.getElementById('total-seleccionadas').textContent = seleccionadas;
-        document.getElementById('calcular-btn').disabled = seleccionadas === 0;
+        document.getElementById('total-seleccionadas').textContent = seleccionadasCount;
+        
+        const puedeCalcular = seleccionadasCount > 0 && repartidorSeleccionado && !cargaExcedida;
+        calcularBtn.disabled = !puedeCalcular;
+        
+        console.log(`🎯 Puede calcular: ${puedeCalcular} (ventas: ${seleccionadasCount}, repartidor: ${repartidorSeleccionado}, excedida: ${cargaExcedida})`);
     }
     
-    // Calcular ruta
-    document.getElementById('calcular-btn').addEventListener('click', async function() {
-        const sucursalId = sucursalSelect.value;
-        const ventasIds = Array.from(document.querySelectorAll('#ventas-container input:checked')).map(cb => parseInt(cb.value));
+    async function handleCalcularRuta() {
+        const checkboxes = document.querySelectorAll('#ventas-container input[type="checkbox"]:checked');
+        const ventasIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
         
-        if (ventasIds.length === 0) return;
+        console.log('🚀 ========== INICIANDO CÁLCULO DE RUTA ==========');
+        console.log(`📦 Ventas seleccionadas: ${ventasIds.length}`, ventasIds);
+        
+        if (ventasIds.length === 0) {
+            alert('⚠️ Debes seleccionar al menos una venta');
+            return;
+        }
+        
+        if (!repartidorSelect.value) {
+            alert('⚠️ Debes seleccionar un repartidor');
+            return;
+        }
+        
+        if (!fechaInput.value) {
+            alert('⚠️ Debes seleccionar una fecha de entrega');
+            return;
+        }
         
         document.getElementById('loading').classList.add('visible');
         
         try {
+            const requestBody = {
+                sucursal_id: parseInt(sucursalSelect.value),
+                repartidor_id: parseInt(repartidorSelect.value),
+                ventas_ids: ventasIds,
+                fecha_entrega: fechaInput.value
+            };
+            
+            console.log('📤 Enviando solicitud:', requestBody);
+            
             const response = await fetch('{% url "api_calcular_ruta" %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
-                body: JSON.stringify({
-                    sucursal_id: sucursalId,
-                    ventas_ids: ventasIds
-                })
+                body: JSON.stringify(requestBody)
             });
             
             const data = await response.json();
+            console.log('📥 Respuesta recibida:', data);
             
             if (data.success) {
+                console.log('✅ Ruta calculada exitosamente');
                 rutaCalculada = data;
                 mostrarRutaEnMapa(data);
                 mostrarResumen(data);
                 mostrarPlanCargue(data.plan_cargue);
-                document.getElementById('guardar-btn').disabled = false;
+                guardarBtn.disabled = false;
             } else {
-                alert('Error: ' + data.error);
+                console.error('❌ Error en respuesta:', data.error);
+                alert('Error al calcular la ruta: ' + data.error);
+                rutaCalculada = null;
+                guardarBtn.disabled = true;
             }
         } catch (error) {
-            console.error('Error:', error);
-            alert('Error al calcular la ruta');
+            console.error('❌ Error de red:', error);
+            alert('Ocurrió un error inesperado al calcular la ruta.');
         } finally {
             document.getElementById('loading').classList.remove('visible');
+            console.log('========== FIN CÁLCULO ==========');
         }
-    });
+    }
     
     function mostrarRutaEnMapa(data) {
-        if (controlDeRuta) {
-            mapa.removeControl(controlDeRuta);
+        console.log('📍 ========== RENDERIZANDO RUTA EN MAPA ==========');
+        console.log('📦 Datos recibidos:', {
+            geometria: data.ruta?.geometria?.coordinates?.length || 'NO',
+            waypoints_info: data.ruta?.waypoints_info?.length || 0,
+            waypoints: data.ruta?.waypoints?.length || 0
+        });
+        
+        // 1. Limpiar capas anteriores
+        if (capaRuta) {
+            console.log('🧹 Limpiando capa anterior');
+            mapa.removeLayer(capaRuta);
+        }
+        capaRuta = L.layerGroup().addTo(mapa);
+        
+        // 2. Validar geometría
+        if (!data.ruta || !data.ruta.geometria || !data.ruta.geometria.coordinates) {
+            console.error('❌ ERROR: No hay geometría válida', data.ruta);
+            alert('Error: No se recibió la geometría de la ruta');
+            return;
         }
         
-        const waypoints = data.ruta.waypoints.map(w => L.latLng(w[0], w[1]));
+        const coords = data.ruta.geometria.coordinates;
+        console.log(`✅ Geometría válida: ${coords.length} puntos`);
+        console.log(`   Primer punto: [${coords[0][1]}, ${coords[0][0]}]`);
+        console.log(`   Último punto: [${coords[coords.length-1][1]}, ${coords[coords.length-1][0]}]`);
         
-        controlDeRuta = L.Routing.control({
-            waypoints: waypoints,
-            routeWhileDragging: false,
-            lineOptions: {
-                styles: [{ color: '#667eea', weight: 6, opacity: 0.8 }]
-            },
-            createMarker: function(i, wp, n) {
-                if (i === 0) {
-                    return L.marker(wp.latLng, {
-                        icon: L.divIcon({
-                            html: '<div style="background: #667eea; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><i class="fas fa-store"></i></div>',
-                            className: '',
-                            iconSize: [30, 30]
-                        })
-                    });
-                } else {
-                    const venta = data.plan_cargue[i - 1];
-                    const color = venta.prioridad === 'alta' ? '#ff6b6b' : venta.prioridad === 'media' ? '#ffd93d' : '#6bcf7f';
-                    return L.marker(wp.latLng, {
-                        icon: L.divIcon({
-                            html: `<div style="background: ${color}; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${i}</div>`,
-                            className: '',
-                            iconSize: [30, 30]
-                        })
-                    }).bindPopup(`<b>Parada ${i}</b><br>${venta.cliente}<br>${venta.direccion}`);
-                }
+        // 3. Dibujar polyline
+        const latLngs = coords.map(coord => [coord[1], coord[0]]);
+        
+        const polyline = L.polyline(latLngs, {
+            color: '#667eea',
+            weight: 6,
+            opacity: 0.8,
+            lineJoin: 'round',
+            lineCap: 'round'
+        }).addTo(capaRuta);
+        
+        console.log(`✅ Polyline dibujada con ${latLngs.length} puntos`);
+        
+        // Ajustar vista
+        mapa.fitBounds(polyline.getBounds().pad(0.1));
+        console.log('✅ Mapa ajustado a bounds');
+
+        // 4. Dibujar marcadores
+        if (!data.ruta.waypoints_info || data.ruta.waypoints_info.length === 0) {
+            console.warn('⚠️ No hay waypoints_info');
+            return;
+        }
+        
+        console.log(`📌 Dibujando ${data.ruta.waypoints_info.length} marcadores...`);
+        
+        data.ruta.waypoints_info.forEach((wp, index) => {
+            let iconHtml, iconClass, iconSize;
+            
+            if (wp.type === 'sucursal') {
+                iconHtml = '<i class="fas fa-store" style="font-size: 16px;"></i>';
+                iconClass = 'marker-sucursal';
+                iconSize = [40, 40];
+                console.log(`  🏪 Sucursal en: [${wp.lat}, ${wp.lng}]`);
+            } else if (wp.type === 'entrega') {
+                iconHtml = `<span style="font-size: 14px; font-weight: bold;">${wp.label}</span>`;
+                iconClass = 'marker-entrega';
+                iconSize = [36, 36];
+                console.log(`  📦 Entrega #${wp.label} en: [${wp.lat}, ${wp.lng}]`);
+            } else {
+                console.warn(`  ⚠️ Tipo desconocido: ${wp.type}`);
+                return;
             }
-        }).addTo(mapa);
+
+            const markerIcon = L.divIcon({
+                html: `<div class="custom-marker ${iconClass}" style="width: ${iconSize[0]}px; height: ${iconSize[1]}px;">${iconHtml}</div>`,
+                className: '',
+                iconSize: iconSize,
+                iconAnchor: [iconSize[0]/2, iconSize[1]/2]
+            });
+
+            const marker = L.marker([wp.lat, wp.lng], { icon: markerIcon })
+                .addTo(capaRuta)
+                .bindPopup(wp.popup);
+            
+            if (wp.type === 'sucursal') {
+                marker.openPopup();
+            }
+        });
+        
+        console.log('✅ Todos los marcadores renderizados');
+        console.log('========== FIN RENDERIZADO ==========');
     }
     
     function mostrarResumen(data) {
@@ -376,36 +602,26 @@ document.addEventListener('DOMContentLoaded', function() {
             div.className = 'cargue-item';
             div.innerHTML = `
                 <div class="d-flex justify-content-between mb-2">
-                    <strong>Posición ${item.orden_carga}</strong>
-                    <span class="badge bg-primary">Parada ${item.orden_entrega}</span>
+                    <strong>Posición de Carga #${item.orden_carga}</strong>
+                    <span class="badge bg-primary">Parada de Entrega #${item.orden_entrega}</span>
                 </div>
                 <div class="small"><strong>${item.cliente}</strong></div>
                 <div class="small text-muted">${item.direccion}</div>
-                <div class="small mt-2">
-                    <i class="fas fa-weight-hanging me-1"></i>${item.peso_total_kg} kg
-                </div>
-                <div class="alert alert-warning small mt-2 mb-0 py-1">
-                    ${item.instruccion}
-                </div>
+                <div class="small mt-2"><i class="fas fa-weight-hanging me-1"></i>${item.peso_total_kg} kg</div>
+                <div class="alert alert-warning small mt-2 mb-0 py-1">${item.instruccion}</div>
             `;
             container.appendChild(div);
         });
-        
         document.getElementById('plan-cargue-section').style.display = 'block';
     }
     
-    // Guardar ruta
-    document.getElementById('guardar-btn').addEventListener('click', async function() {
-        if (!rutaCalculada) return;
-        
-        const sucursalId = sucursalSelect.value;
-        const repartidorId = document.getElementById('repartidor-select').value;
-        const fechaEntrega = document.getElementById('fecha-entrega').value;
-        
-        if (!fechaEntrega) {
-            alert('Por favor selecciona una fecha de entrega');
+    async function handleGuardarRuta() {
+        if (!rutaCalculada) {
+            alert('⚠️ Primero debes calcular una ruta');
             return;
         }
+        
+        console.log('💾 Guardando ruta...');
         
         try {
             const response = await fetch('{% url "api_guardar_ruta" %}', {
@@ -415,9 +631,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
                 body: JSON.stringify({
-                    sucursal_id: sucursalId,
-                    repartidor_id: repartidorId || null,
-                    fecha_entrega: fechaEntrega,
+                    sucursal_id: sucursalSelect.value,
+                    repartidor_id: repartidorSelect.value,
+                    fecha_entrega: fechaInput.value,
                     distancia_km: rutaCalculada.ruta.distancia_km,
                     tiempo_min: rutaCalculada.ruta.tiempo_min,
                     numero_paradas: rutaCalculada.numero_paradas,
@@ -434,16 +650,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (data.success) {
-                alert(data.message);
+                alert('✅ ' + data.message);
                 window.location.href = '{% url "domicilios_home" %}';
             } else {
-                alert('Error: ' + data.error);
+                alert('❌ Error al guardar: ' + data.error);
             }
         } catch (error) {
-            console.error('Error:', error);
-            alert('Error al guardar la ruta');
+            console.error('❌ Error guardando:', error);
+            alert('Ocurrió un error al guardar la ruta.');
         }
-    });
+    }
 });
 </script>
 {% endblock %}

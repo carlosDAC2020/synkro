@@ -28,6 +28,8 @@ urlpatterns = [
     path('ventas/', views.venta_list, name='venta_list'),
     path('ventas/nueva/', views.nueva_venta, name='nueva_venta'),
     path('ventas/<int:pk>/', views.venta_detail, name='venta_detail'),
+    path('ventas/<int:pk>/cambiar-estado/', views.venta_cambiar_estado, name='venta_cambiar_estado'), 
+     path('ventas/<int:pk>/editar_domicilio/', views.venta_editar_domicilio, name='venta_editar_domicilio'),
     
     # Notas de Entrega
     path('ventas/<int:venta_id>/notas-entrega/crear/', views.nota_entrega_crear, name='nota_entrega_crear'),

@@ -7,9 +7,15 @@ from datetime import datetime, timedelta
 from django.http import JsonResponse
 from django.db import transaction
 from django.db.models import Q, F
+from ortools.constraint_solver import routing_enums_pb2
+from ortools.constraint_solver import pywrapcp
+from datetime import datetime
+import json 
+import requests 
+
 
 from .models import Cliente, Producto, Categoria, Venta, VentaDetalle, Proveedor, PedidoProveedor, PedidoDetalle, PagoProveedor, NotaEntregaVenta, DetalleNotaEntrega, Sucursal, Repartidor, RutaEntrega, DetalleRuta
-from .forms import ClienteForm, ProductoForm, VentaForm, VentaDetalleFormSet, ProveedorForm, PedidoProveedorForm, PedidoDetalleFormSet, PagoProveedorForm, NotaEntregaVentaForm, DetalleNotaEntregaFormSet, SucursalForm, RepartidorForm, RutaEntregaForm
+from .forms import ClienteForm, ProductoForm, VentaForm, VentaDetalleFormSet, ProveedorForm, PedidoProveedorForm, PedidoDetalleFormSet, PagoProveedorForm, NotaEntregaVentaForm, DetalleNotaEntregaFormSet, SucursalForm, RepartidorForm, RutaEntregaForm, VentaDomicilioForm
 
 # Dashboard
 @login_required
@@ -361,12 +367,73 @@ def nueva_venta(request):
 
 @login_required
 def venta_detail(request, pk):
+
+    domicilio_form = VentaDomicilioForm(instance=venta)
     venta = get_object_or_404(Venta, pk=pk)
     detalles = venta.detalles.select_related('producto')
     return render(request, 'ventas/detail.html', {
         'venta': venta,
         'detalles': detalles,
+        'domicilio_form': domicilio_form,
     })
+
+@login_required
+def venta_cambiar_estado(request, pk):
+    """
+    Gestiona el cambio de estado de una venta a través de un formulario POST.
+    """
+    venta = get_object_or_404(Venta, pk=pk)
+    
+    if request.method == 'POST':
+        nuevo_estado = request.POST.get('estado')
+        
+        # Validar que el nuevo estado sea una opción válida
+        if nuevo_estado in [choice[0] for choice in Venta.ESTADO_CHOICES]:
+            
+            # Si se va a marcar como pendiente de entrega, asegurar que requiere domicilio
+            if nuevo_estado == 'PAGADA_PENDIENTE_ENTREGA':
+                if not venta.requiere_domicilio:
+                    # Si no lo tiene, lo marcamos automáticamente
+                    # En un futuro, podrías hacer esto más complejo si es necesario
+                    venta.requiere_domicilio = True
+            
+            venta.estado = nuevo_estado
+            try:
+                # El método save() de tu modelo ya tiene la lógica para ajustar el stock
+                venta.save()
+                messages.success(request, f'El estado de la Venta #{venta.id} se actualizó a "{venta.get_estado_display()}".')
+            except Exception as e:
+                messages.error(request, f'Hubo un error al cambiar el estado: {e}')
+        else:
+            messages.error(request, 'El estado seleccionado no es válido.')
+            
+    return redirect('venta_detail', pk=venta.id)
+
+@login_required
+def venta_editar_domicilio(request, pk):
+    """
+    Procesa la actualización de los datos de domicilio de una venta.
+    """
+    venta = get_object_or_404(Venta, pk=pk)
+    
+    if request.method == 'POST':
+        form = VentaDomicilioForm(request.POST, instance=venta)
+        if form.is_valid():
+            # Limpiar coordenadas si no se requiere domicilio
+            if not form.cleaned_data.get('requiere_domicilio'):
+                venta.latitud_entrega = None
+                venta.longitud_entrega = None
+
+            form.save()
+            messages.success(request, f'Los datos de domicilio para la Venta #{venta.id} se han actualizado.')
+        else:
+            # Construir un mensaje de error legible
+            error_messages = []
+            for field, errors in form.errors.items():
+                error_messages.append(f"{field}: {', '.join(errors)}")
+            messages.error(request, f"No se pudo actualizar. Errores: {'; '.join(error_messages)}")
+            
+    return redirect('venta_detail', pk=pk)
 
 # API endpoints para AJAX
 @login_required
@@ -863,12 +930,16 @@ def domicilios_home(request):
 @login_required
 def domicilios_planificar(request):
     """Vista para planificar nuevas rutas"""
+    ventas_en_rutas_activas = DetalleRuta.objects.filter(
+        ~Q(ruta__estado='CANCELADA')  # El ~Q niega la condición
+    ).values_list('venta_id', flat=True)
+
     ventas_pendientes = Venta.objects.filter(
         requiere_domicilio=True,
         estado='PAGADA_PENDIENTE_ENTREGA'
     ).exclude(
-        id__in=DetalleRuta.objects.values_list('venta_id', flat=True)
-    ).select_related('cliente')
+        id__in=ventas_en_rutas_activas
+    ).select_related('cliente').prefetch_related('detalles__producto')
     
     sucursales = Sucursal.objects.filter(activa=True)
     repartidores = Repartidor.objects.filter(estado='ACTIVO')
@@ -905,6 +976,24 @@ def ruta_cambiar_estado(request, pk):
                     messages.error(request, f'No se puede completar la ruta. Hay {entregas_pendientes} entrega(s) pendiente(s). Debes marcar todas las entregas como completadas primero.')
                     return redirect('ruta_detail', pk=ruta.id)
             
+            if nuevo_estado == 'CANCELADA':
+                with transaction.atomic():
+                    # Obtenemos todas las ventas asociadas a esta ruta
+                    detalles_ruta = ruta.detalles.select_related('venta').all()
+                    ventas_a_liberar_ids = []
+
+                    for detalle in detalles_ruta:
+                        # ¡IMPORTANTE! Solo liberamos las ventas que NO fueron entregadas
+                        if not detalle.entregado:
+                            ventas_a_liberar_ids.append(detalle.venta.id)
+
+                    if ventas_a_liberar_ids:
+                        # Cambiamos el estado de las ventas no entregadas de vuelta a PENDIENTE
+                        Venta.objects.filter(id__in=ventas_a_liberar_ids).update(
+                            estado='PAGADA_PENDIENTE_ENTREGA'
+                        )
+                        messages.info(request, f'{len(ventas_a_liberar_ids)} venta(s) no entregada(s) han sido liberadas y están disponibles para otra ruta.')
+
             ruta.estado = nuevo_estado
             
             # Registrar hora de inicio/fin
@@ -959,11 +1048,16 @@ def ruta_marcar_entrega(request, detalle_id):
 @login_required
 def api_ventas_pendientes(request):
     """API: Obtener ventas pendientes de domicilio"""
+    # IDs de ventas que ya están en rutas activas (no canceladas)
+    ventas_en_rutas_activas = DetalleRuta.objects.filter(
+        ~Q(ruta__estado='CANCELADA')  # El ~Q niega la condición
+    ).values_list('venta_id', flat=True)
+
     ventas = Venta.objects.filter(
         requiere_domicilio=True,
         estado='PAGADA_PENDIENTE_ENTREGA'
     ).exclude(
-        id__in=DetalleRuta.objects.values_list('venta_id', flat=True)
+        id__in=ventas_en_rutas_activas
     ).select_related('cliente').prefetch_related('detalles__producto')
     
     data = []
@@ -994,83 +1088,298 @@ def api_ventas_pendientes(request):
             'monto': float(v.monto_total),
             'peso_total_kg': peso_total,
             'volumen_total_m3': volumen_total,
-            'productos': productos_list
+            'productos': productos_list,
+            'ventana_inicio': v.ventana_tiempo_inicio.strftime('%H:%M') if v.ventana_tiempo_inicio else None,
+            'ventana_fin': v.ventana_tiempo_fin.strftime('%H:%M') if v.ventana_tiempo_fin else None,
         })
     
     return JsonResponse({'ventas': data})
 
 @login_required
 def api_calcular_ruta_optima(request):
-    """API: Calcular ruta óptima con tráfico usando OSRM"""
-    import requests
-    import json as json_module
-    from decimal import Decimal
-    
+    """
+    API: Calcular ruta óptima con restricciones de capacidad y ventanas de tiempo.
+    """
     if request.method != 'POST':
         return JsonResponse({'error': 'Método no permitido'}, status=405)
     
     try:
-        data = json_module.loads(request.body)
+        data = json.loads(request.body) 
         sucursal_id = data.get('sucursal_id')
+        repartidor_id = data.get('repartidor_id')
         ventas_ids = data.get('ventas_ids', [])
-        
-        if not sucursal_id or not ventas_ids:
+        fecha_entrega_str = data.get('fecha_entrega')
+
+        print(f"\n{'='*80}")
+        print(f"🚀 INICIANDO CÁLCULO DE RUTA")
+        print(f"{'='*80}")
+        print(f"📦 Ventas solicitadas: {ventas_ids}")
+        print(f"🏪 Sucursal ID: {sucursal_id}")
+        print(f"🚗 Repartidor ID: {repartidor_id}")
+
+        if not all([sucursal_id, repartidor_id, ventas_ids, fecha_entrega_str]):
             return JsonResponse({'error': 'Datos incompletos'}, status=400)
         
-        # Obtener coordenadas
+        # --- PASO 1: OBTENER DATOS ---
         sucursal = Sucursal.objects.get(id=sucursal_id)
+        repartidor = Repartidor.objects.get(id=repartidor_id)
         ventas = Venta.objects.filter(id__in=ventas_ids).prefetch_related('detalles__producto')
         
-        # Construir waypoints
-        waypoints = [[float(sucursal.latitud), float(sucursal.longitud)]]
-        ventas_ordenadas = []
+        print(f"\n📊 VALIDANDO VENTAS:")
+        print(f"   Ventas encontradas en BD: {ventas.count()}")
+        
+        nodos = [{'tipo': 'sucursal', 'obj': sucursal, 'coords': [float(sucursal.latitud), float(sucursal.longitud)]}]
+        ventas_a_procesar = []
+        ventas_descartadas = []
         
         for v in ventas:
+            print(f"\n   Venta #{v.id}:")
+            print(f"     - Cliente: {v.cliente.nombre if v.cliente else 'Sin cliente'}")
+            print(f"     - Dirección: {v.direccion_entrega}")
+            print(f"     - Coordenadas: lat={v.latitud_entrega}, lng={v.longitud_entrega}")
+            
             if v.latitud_entrega and v.longitud_entrega:
-                waypoints.append([float(v.latitud_entrega), float(v.longitud_entrega)])
-                ventas_ordenadas.append(v)
+                nodos.append({
+                    'tipo': 'venta', 
+                    'obj': v, 
+                    'coords': [float(v.latitud_entrega), float(v.longitud_entrega)]
+                })
+                ventas_a_procesar.append(v)
+                print(f"     ✅ INCLUIDA en ruta")
+            else:
+                ventas_descartadas.append(v)
+                print(f"     ❌ DESCARTADA (sin coordenadas)")
         
-        # Llamar a OSRM para calcular ruta
-        coords_str = ';'.join([f"{w[1]},{w[0]}" for w in waypoints])
-        url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}"
-        params = {
-            'overview': 'full',
-            'geometries': 'geojson',
-            'steps': 'true',
-            'annotations': 'true'
-        }
+        print(f"\n📈 RESUMEN VALIDACIÓN:")
+        print(f"   ✅ Ventas válidas para ruta: {len(ventas_a_procesar)}")
+        print(f"   ❌ Ventas descartadas: {len(ventas_descartadas)}")
         
-        response = requests.get(url, params=params, timeout=10)
-        osrm_data = response.json()
+        if len(ventas_descartadas) > 0:
+            print(f"\n⚠️ ALERTA: Las siguientes ventas no tienen coordenadas:")
+            for v in ventas_descartadas:
+                print(f"      - Venta #{v.id}: {v.cliente.nombre if v.cliente else 'N/A'}")
         
-        if osrm_data.get('code') != 'Ok':
-            return JsonResponse({'error': 'No se pudo calcular la ruta'}, status=400)
+        if len(nodos) <= 1:
+            return JsonResponse({
+                'error': f'No hay suficientes puntos válidos. Ventas con coordenadas: {len(ventas_a_procesar)}'
+            }, status=400)
+
+        # --- PASO 2: MATRIZ DE TIEMPOS ---
+        print(f"\n🗺️ CALCULANDO MATRIZ DE DISTANCIAS:")
+        print(f"   Nodos totales: {len(nodos)}")
         
-        route = osrm_data['routes'][0]
+        coords_str = ';'.join([f"{n['coords'][1]},{n['coords'][0]}" for n in nodos])
+        url_matrix = f"https://router.project-osrm.org/table/v1/driving/{coords_str}?annotations=duration"
         
-        # Generar plan de cargue LIFO
+        response_matrix = requests.get(url_matrix, timeout=20)
+        osrm_matrix_data = response_matrix.json()
+        
+        if osrm_matrix_data.get('code') != 'Ok':
+            return JsonResponse({'error': f"Error OSRM: {osrm_matrix_data.get('message', '')}"}, status=500)
+        
+        time_matrix = [[int(t or 0) for t in row] for row in osrm_matrix_data['durations']]
+        print(f"   ✅ Matriz calculada: {len(time_matrix)}x{len(time_matrix[0])}")
+
+        # --- PASO 3: OR-TOOLS ---
+        print(f"\n🔧 CONFIGURANDO OR-TOOLS:")
+        
+        demands_kg = [0] + [int(v.peso_total_kg * 100) for v in ventas_a_procesar]
+        demands_m3 = [0] + [int(v.volumen_total_m3 * 1000) for v in ventas_a_procesar]
+        vehicle_capacities_kg = [int(repartidor.capacidad_maxima_kg * 100)]
+        vehicle_capacities_m3 = [int(repartidor.capacidad_maxima_m3 * 1000)]
+
+        print(f"   Demandas KG: {[d/100 for d in demands_kg]}")
+        print(f"   Capacidad vehículo: {vehicle_capacities_kg[0]/100} kg")
+
+        time_windows = [(0, 86400)]  # Sucursal: todo el día
+        
+        for v in ventas_a_procesar:
+            if v.ventana_tiempo_inicio and v.ventana_tiempo_fin:
+                start_s = v.ventana_tiempo_inicio.hour * 3600 + v.ventana_tiempo_inicio.minute * 60
+                end_s = v.ventana_tiempo_fin.hour * 3600 + v.ventana_tiempo_fin.minute * 60
+                time_windows.append((start_s, end_s))
+                print(f"   Venta #{v.id}: ventana {v.ventana_tiempo_inicio} - {v.ventana_tiempo_fin}")
+            else:
+                time_windows.append((8 * 3600, 18 * 3600))  # Default 8am-6pm
+                print(f"   Venta #{v.id}: ventana DEFAULT 8:00-18:00")
+
+        # --- PASO 4: RESOLVER ---
+        print(f"\n🧮 RESOLVIENDO CON OR-TOOLS...")
+        
+        manager = pywrapcp.RoutingIndexManager(len(time_matrix), 1, 0)
+        routing = pywrapcp.RoutingModel(manager)
+
+        def time_callback(from_index, to_index):
+            from_node = manager.IndexToNode(from_index)
+            to_node = manager.IndexToNode(to_index)
+            return time_matrix[from_node][to_node]
+        
+        transit_callback_index = routing.RegisterTransitCallback(time_callback)
+        routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+        
+        def demand_callback_kg(from_index):
+            return demands_kg[manager.IndexToNode(from_index)]
+        demand_callback_index_kg = routing.RegisterUnaryTransitCallback(demand_callback_kg)
+        routing.AddDimensionWithVehicleCapacity(demand_callback_index_kg, 0, vehicle_capacities_kg, True, 'CapacityKG')
+        
+        def demand_callback_m3(from_index):
+            return demands_m3[manager.IndexToNode(from_index)]
+        demand_callback_index_m3 = routing.RegisterUnaryTransitCallback(demand_callback_m3)
+        routing.AddDimensionWithVehicleCapacity(demand_callback_index_m3, 0, vehicle_capacities_m3, True, 'CapacityM3')
+        
+        routing.AddDimension(transit_callback_index, 3600, 86400, False, 'Time')
+        time_dimension = routing.GetDimensionOrDie('Time')
+        
+        for loc_idx, time_win in enumerate(time_windows):
+            if loc_idx == 0: continue
+            index = manager.NodeToIndex(loc_idx)
+            time_dimension.CumulVar(index).SetRange(time_win[0], time_win[1])
+
+        search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+        search_parameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
+        search_parameters.local_search_metaheuristic = (routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
+        search_parameters.time_limit.FromSeconds(30)
+
+        solution = routing.SolveWithParameters(search_parameters)
+        
+        if not solution:
+            print(f"   ❌ NO SE ENCONTRÓ SOLUCIÓN")
+            return JsonResponse({'error': 'No se encontró solución viable (posibles restricciones de capacidad o tiempo)'}, status=400)
+        
+        print(f"   ✅ Solución encontrada")
+        print(f"   Costo total: {solution.ObjectiveValue()}")
+
+        # --- PASO 5: EXTRAER RUTA ---
+        print(f"\n🛣️ CONSTRUYENDO SECUENCIA DE RUTA:")
+        
+        route_sequence_indices = []
+        index = routing.Start(0)
+        route_nodes_visited = []
+        
+        while not routing.IsEnd(index):
+            node_index = manager.IndexToNode(index)
+            route_nodes_visited.append(node_index)
+            
+            if node_index != 0:  # Excluir sucursal del inicio
+                route_sequence_indices.append(node_index)
+                print(f"   Parada: nodo {node_index} (venta #{ventas_a_procesar[node_index-1].id})")
+            else:
+                print(f"   Inicio: nodo {node_index} (sucursal)")
+            
+            index = solution.Value(routing.NextVar(index))
+        
+        # Nodo final (debería ser la sucursal)
+        final_node = manager.IndexToNode(index)
+        route_nodes_visited.append(final_node)
+        print(f"   Fin: nodo {final_node} (sucursal)")
+        
+        print(f"\n📊 RESUMEN RUTA:")
+        print(f"   Nodos visitados: {route_nodes_visited}")
+        print(f"   Entregas en secuencia: {len(route_sequence_indices)}")
+        
+        ventas_ordenadas = [nodos[i]['obj'] for i in route_sequence_indices]
+        
+        print(f"\n📦 VENTAS EN ORDEN DE ENTREGA:")
+        for idx, venta in enumerate(ventas_ordenadas):
+            print(f"   {idx+1}. Venta #{venta.id} - {venta.cliente.nombre if venta.cliente else 'N/A'}")
+
+        # --- PASO 6: CONSTRUIR COORDENADAS PARA OSRM ---
+        print(f"\n🌐 PREPARANDO GEOMETRÍA:")
+        
+        coords_para_osrm = []
+        
+        # Sucursal inicio
+        coords_para_osrm.append([float(sucursal.latitud), float(sucursal.longitud)])
+        print(f"   1. Sucursal (inicio): [{sucursal.latitud}, {sucursal.longitud}]")
+        
+        # Entregas
+        for idx, venta in enumerate(ventas_ordenadas):
+            coords_para_osrm.append([float(venta.latitud_entrega), float(venta.longitud_entrega)])
+            print(f"   {idx+2}. Venta #{venta.id}: [{venta.latitud_entrega}, {venta.longitud_entrega}]")
+        
+        # Sucursal fin
+        coords_para_osrm.append([float(sucursal.latitud), float(sucursal.longitud)])
+        print(f"   {len(coords_para_osrm)}. Sucursal (fin): [{sucursal.latitud}, {sucursal.longitud}]")
+
+        # --- PASO 7: LLAMAR A OSRM ---
+        print(f"\n🗺️ OBTENIENDO GEOMETRÍA DE OSRM:")
+        
+        coords_str_ruta = ';'.join([f"{c[1]},{c[0]}" for c in coords_para_osrm])
+        url_route = f"https://router.project-osrm.org/route/v1/driving/{coords_str_ruta}"
+        params_route = {'overview': 'full', 'geometries': 'geojson', 'steps': 'true', 'annotations': 'true'}
+        
+        response_route = requests.get(url_route, params=params_route, timeout=15)
+        osrm_route_data = response_route.json()
+        
+        if osrm_route_data.get('code') != 'Ok':
+            return JsonResponse({'error': 'No se pudo calcular geometría de ruta'}, status=400)
+        
+        route = osrm_route_data['routes'][0]
+        geometry = route['geometry']
+        
+        print(f"   ✅ Geometría obtenida: {len(geometry['coordinates'])} puntos")
+
+        # --- PASO 8: WAYPOINTS PARA FRONTEND ---
+        final_waypoints_info = []
+        
+        final_waypoints_info.append({
+            'type': 'sucursal',
+            'lat': float(sucursal.latitud),
+            'lng': float(sucursal.longitud),
+            'label': 'S',
+            'popup': f"<b>Sucursal de Salida</b><br>{sucursal.nombre}<br><small>Inicio y Fin de ruta</small>"
+        })
+
+        for i, venta in enumerate(ventas_ordenadas):
+            final_waypoints_info.append({
+                'type': 'entrega',
+                'lat': float(venta.latitud_entrega),
+                'lng': float(venta.longitud_entrega),
+                'label': str(i + 1),
+                'popup': f"<b>Parada #{i + 1}</b><br>{venta.cliente.nombre if venta.cliente else 'N/A'}<br><small>{venta.direccion_entrega}</small>"
+            })
+
+        # --- PASO 9: WAYPOINTS PARA BD ---
+        waypoints_completos = []
+        
+        waypoints_completos.append({
+            'lat': float(sucursal.latitud),
+            'lng': float(sucursal.longitud),
+            'tipo': 'sucursal',
+            'nombre': sucursal.nombre
+        })
+        
+        for i, venta in enumerate(ventas_ordenadas):
+            waypoints_completos.append({
+                'lat': float(venta.latitud_entrega),
+                'lng': float(venta.longitud_entrega),
+                'tipo': 'entrega',
+                'venta_id': venta.id,
+                'orden': i + 1,
+                'cliente': venta.cliente.nombre if venta.cliente else 'N/A',
+                'direccion': venta.direccion_entrega
+            })
+        
+        waypoints_completos.append({
+            'lat': float(sucursal.latitud),
+            'lng': float(sucursal.longitud),
+            'tipo': 'sucursal',
+            'nombre': sucursal.nombre
+        })
+
+        # --- PASO 10: PLAN DE CARGUE ---
         plan_cargue = []
         orden_entrega = list(range(1, len(ventas_ordenadas) + 1))
         orden_carga = list(reversed(orden_entrega))
         
         for idx, venta in enumerate(ventas_ordenadas):
-            peso_total = 0
-            volumen_total = 0
             productos_list = []
-            
             for detalle in venta.detalles.all():
-                peso = float(detalle.producto.peso_kg) * detalle.cantidad if detalle.producto.peso_kg else 0
-                volumen = float(detalle.producto.volumen_m3) * detalle.cantidad if detalle.producto.volumen_m3 else 0
-                peso_total += peso
-                volumen_total += volumen
-                
                 productos_list.append({
                     'nombre': detalle.producto.nombre,
-                    'cantidad': detalle.cantidad,
-                    'peso_kg': round(peso, 2),
-                    'volumen_m3': round(volumen, 3)
+                    'cantidad': detalle.cantidad
                 })
-            
+
             plan_cargue.append({
                 'venta_id': venta.id,
                 'orden_carga': orden_carga[idx],
@@ -1080,40 +1389,27 @@ def api_calcular_ruta_optima(request):
                 'email': venta.cliente.email if venta.cliente and venta.cliente.email else 'N/A',
                 'direccion': venta.direccion_entrega,
                 'productos': productos_list,
-                'peso_total_kg': round(peso_total, 2),
-                'volumen_total_m3': round(volumen_total, 3),
+                'peso_total_kg': round(float(venta.peso_total_kg), 2),
+                'volumen_total_m3': round(float(venta.volumen_total_m3), 3),
                 'instruccion': f"Cargar en posición {orden_carga[idx]} (entregar en parada {orden_entrega[idx]})"
             })
         
-        # Calcular totales
         peso_total_ruta = sum(item['peso_total_kg'] for item in plan_cargue)
         volumen_total_ruta = sum(item['volumen_total_m3'] for item in plan_cargue)
         
-        # Extraer instrucciones de navegación paso a paso
+        # --- PASO 11: INSTRUCCIONES ---
         instrucciones = []
         if 'legs' in route:
             paso_numero = 1
-            for leg_idx, leg in enumerate(route['legs']):
+            for leg in route['legs']:
                 if 'steps' in leg:
                     for step in leg['steps']:
                         if 'maneuver' in step:
                             maneuver = step['maneuver']
-
-                            # Obtenemos el nombre de la calle del paso actual
                             street_name = step.get('name', '')
-                            
-                            # Obtenemos la instrucción base de OSRM
                             base_instruction = maneuver.get('instruction', 'Continuar')
-                            
-                            # Creamos la instrucción final mejorada
-                            final_instruction = base_instruction
-                            
-                            # Si la instrucción es genérica pero tenemos nombre de calle, la mejoramos.
-                            # Por ejemplo, cambiamos "Continuar" por "Continuar por Avenida Principal".
-                            if base_instruction.lower() in ['continue', 'go straight', 'continuar'] and street_name:
-                                final_instruction = f"Continúa por {street_name}"
-
-                            instruccion = {
+                            final_instruction = f"Continúa por {street_name}" if base_instruction.lower() in ['continue', 'go straight', 'continuar'] and street_name else base_instruction
+                            instrucciones.append({
                                 'paso': paso_numero,
                                 'distancia_m': round(step.get('distance', 0)),
                                 'duracion_s': round(step.get('duration', 0)),
@@ -1121,17 +1417,24 @@ def api_calcular_ruta_optima(request):
                                 'tipo': maneuver.get('type', 'turn'),
                                 'modificador': maneuver.get('modifier', ''),
                                 'coordenadas': maneuver.get('location', [])
-                            }
-                            instrucciones.append(instruccion)
+                            })
                             paso_numero += 1
+        
+        # --- RESPUESTA FINAL ---
+        print(f"\n✅ RUTA CALCULADA EXITOSAMENTE:")
+        print(f"   Distancia: {round(route['distance'] / 1000, 2)} km")
+        print(f"   Tiempo: {round(route['duration'] / 60)} min")
+        print(f"   Paradas: {len(ventas_ordenadas)}")
+        print(f"{'='*80}\n")
         
         return JsonResponse({
             'success': True,
             'ruta': {
                 'distancia_km': round(route['distance'] / 1000, 2),
                 'tiempo_min': round(route['duration'] / 60),
-                'geometria': route['geometry'],
-                'waypoints': waypoints,
+                'geometria': geometry,
+                'waypoints': waypoints_completos,
+                'waypoints_info': final_waypoints_info,
                 'trafico': route.get('annotations', {}),
                 'instrucciones': instrucciones
             },
@@ -1142,8 +1445,12 @@ def api_calcular_ruta_optima(request):
         })
         
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        import traceback
+        print(f"\n❌ ERROR:")
+        traceback.print_exc()
+        return JsonResponse({'error': f"Error: {str(e)}"}, status=500)
 
+# 10.953649, -74.808417
 @login_required
 def api_guardar_ruta(request):
     """API: Guardar ruta planificada en la base de datos"""

@@ -99,6 +99,15 @@ class Venta(models.Model):
         default='media',
         help_text="Prioridad de entrega"
     )
+
+    ventana_tiempo_inicio = models.TimeField(
+        null=True, blank=True,
+        help_text="Hora de inicio preferida para la entrega"
+    )
+    ventana_tiempo_fin = models.TimeField(
+        null=True, blank=True,
+        help_text="Hora límite para realizar la entrega"
+    )
     
     _estado_anterior = None
 
@@ -207,6 +216,20 @@ class Venta(models.Model):
                 return False
         
         return True
+
+    @property
+    def peso_total_kg(self):
+        return sum(
+            (detalle.producto.peso_kg or 0) * detalle.cantidad
+            for detalle in self.detalles.all()
+        )
+
+    @property
+    def volumen_total_m3(self):
+        return sum(
+            (detalle.producto.volumen_m3 or 0) * detalle.cantidad
+            for detalle in self.detalles.all()
+        )
 
 
 class VentaDetalle(models.Model):
@@ -412,6 +435,15 @@ class Repartidor(models.Model):
     documento = models.CharField(max_length=50, unique=True)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='ACTIVO')
     fecha_ingreso = models.DateField(auto_now_add=True)
+
+    capacidad_maxima_kg = models.DecimalField(
+        max_digits=10, decimal_places=2, default=1000.00,
+        help_text="Capacidad máxima del vehículo en kilogramos (kg)"
+    )
+    capacidad_maxima_m3 = models.DecimalField(
+        max_digits=10, decimal_places=3, default=5.000,
+        help_text="Capacidad máxima del vehículo en metros cúbicos (m³)"
+    )
     
     def __str__(self):
         return self.nombre
