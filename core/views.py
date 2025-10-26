@@ -367,10 +367,15 @@ def nueva_venta(request):
 
 @login_required
 def venta_detail(request, pk):
-
-    domicilio_form = VentaDomicilioForm(instance=venta)
+    # 1. Primero, obtenemos el objeto 'venta' de la base de datos.
     venta = get_object_or_404(Venta, pk=pk)
+    
+    # 2. Ahora que la variable 'venta' existe, la usamos para crear el formulario.
+    domicilio_form = VentaDomicilioForm(instance=venta)
+    
+    # El resto de la lógica permanece igual.
     detalles = venta.detalles.select_related('producto')
+    
     return render(request, 'ventas/detail.html', {
         'venta': venta,
         'detalles': detalles,

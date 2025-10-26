@@ -79,6 +79,65 @@
                 </div>
             </div>
         </div>
+
+         <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-truck-loading me-2"></i>Información de Domicilio</h6>
+            </div>
+            <div class="card-body">
+                <form action="{% url 'venta_editar_domicilio' venta.id %}" method="post">
+                    {% csrf_token %}
+                    <div class="form-check mb-3">
+                        {{ domicilio_form.requiere_domicilio }}
+                        <label class="form-check-label" for="{{ domicilio_form.requiere_domicilio.id_for_label }}">
+                            <strong>{{ domicilio_form.requiere_domicilio.label }}</strong>
+                        </label>
+                    </div>
+                    
+                    <div id="campos-domicilio-detalle" style="display: {% if venta.requiere_domicilio %}block{% else %}none{% endif %};">
+                        <div class="mb-3">
+                            <label for="{{ domicilio_form.direccion_entrega.id_for_label }}" class="form-label">{{ domicilio_form.direccion_entrega.label }}</label>
+                            {{ domicilio_form.direccion_entrega }}
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ domicilio_form.latitud_entrega.id_for_label }}" class="form-label">Latitud</label>
+                                {{ domicilio_form.latitud_entrega }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ domicilio_form.longitud_entrega.id_for_label }}" class="form-label">Longitud</label>
+                                {{ domicilio_form.longitud_entrega }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ domicilio_form.prioridad_entrega.id_for_label }}" class="form-label">{{ domicilio_form.prioridad_entrega.label }}</label>
+                            {{ domicilio_form.prioridad_entrega }}
+                        </div>
+                    
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ domicilio_form.ventana_tiempo_inicio.id_for_label }}" class="form-label">{{ domicilio_form.ventana_tiempo_inicio.label }}</label>
+                                {{ domicilio_form.ventana_tiempo_inicio }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ domicilio_form.ventana_tiempo_fin.id_for_label }}" class="form-label">{{ domicilio_form.ventana_tiempo_fin.label }}</label>
+                                {{ domicilio_form.ventana_tiempo_fin }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save me-2"></i>Guardar Cambios de Domicilio
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
     </div>
     
     <!-- Detalle de productos -->
@@ -319,4 +378,21 @@
         margin-bottom: 20px;
     }
 </style>
+{% endblock %}
+
+{% block extra_js %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkDomicilio = document.getElementById('{{ domicilio_form.requiere_domicilio.id_for_label }}');
+    const camposDomicilio = document.getElementById('campos-domicilio-detalle');
+
+    if(checkDomicilio) {
+        checkDomicilio.addEventListener('change', function() {
+            camposDomicilio.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+});
+</script>
+
 {% endblock %}
