@@ -220,8 +220,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // --- INICIALIZACIÓN DEL MAPA ---
     const selectedOption = sucursalSelect.options[sucursalSelect.selectedIndex];
-    const initialLat = parseFloat(selectedOption.dataset.lat);
-    const initialLng = parseFloat(selectedOption.dataset.lng);
+    //const initialLat = parseFloat(selectedOption.dataset.lat);
+    //const initialLng = parseFloat(selectedOption.dataset.lng);
+    const initialLat = parseFloat(String(selectedOption.dataset.lat).replace(',', '.'));
+    const initialLng = parseFloat(String(selectedOption.dataset.lng).replace(',', '.'));
+
     
     mapa = L.map('mapa').setView([initialLat, initialLng], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -253,8 +256,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function handleSucursalChange() {
         const option = this.options[this.selectedIndex];
-        const lat = parseFloat(option.dataset.lat);
-        const lng = parseFloat(option.dataset.lng);
+        //const lat = parseFloat(option.dataset.lat);
+        //const lng = parseFloat(option.dataset.lng);
+        const lat = parseFloat(String(option.dataset.lat).replace(',', '.'));
+        const lng = parseFloat(String(option.dataset.lng).replace(',', '.'));
+        
         mapa.removeLayer(marcadorSucursal);
         marcadorSucursal = L.marker([lat, lng], {
             icon: L.divIcon({
