@@ -43,9 +43,14 @@ class Producto(models.Model):
         return (self.precio_venta or 0) - (self.costo_unitario or 0)
 
     @property
-    def margen_ganancia(self):
-        if self.costo_unitario and self.costo_unitario > 0:
-            return (self.ganancia_unitaria / self.costo_unitario) * 100
+    def margen_ganancia_sobre_venta(self):
+        # Asegurarse de que el precio de venta no sea cero para evitar errores de división.
+        if self.precio_venta and self.precio_venta > 0:
+            # Aplica la fórmula: ((Precio de venta - costo producto) / precio de venta) * 100
+            ganancia = (self.precio_venta or 0) - (self.costo_unitario or 0)
+            return (ganancia / self.precio_venta) * 100
+        
+        # Si el precio de venta es 0, el margen es 0.
         return 0
 
 
