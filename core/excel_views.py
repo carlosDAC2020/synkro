@@ -93,6 +93,8 @@ def clientes_descargar_plantilla(request):
     ws.cell(row=6, column=1, value="• Incluye el ID para actualizar clientes existentes")
     ws.cell(row=7, column=1, value="• El Nombre es obligatorio")
     ws.cell(row=8, column=1, value="• Los demás campos son opcionales")
+    ws.cell(row=9, column=1, value="• No agregra ningun tipo de formato a las celdas")
+    ws.cell(row=10, column=1, value="• Todo valor monetario debe ser de tipo ENTERO sin . ni ,")
     
     # Ajustar ancho de columnas
     ws.column_dimensions['A'].width = 8
